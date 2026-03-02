@@ -3,9 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>ParkFinder — Mappa Completa</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#00ff99">
+
+<!-- iOS "Add to Home Screen" -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ParkFinder">
+<link rel="apple-touch-icon" href="icon-192.png">
+
+<!-- Icons (optional, helpful for some browsers) -->
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+
 <style>
   :root {
     --bg: #0a0f0d;
@@ -205,7 +222,6 @@
     #mobileSheet, #mobileSheet * { touch-action: manipulation; }
   }
 
-
   .toggle-row{margin-top:10px; display:flex; gap:10px; align-items:center;}
   .toggle{display:flex; gap:10px; align-items:center; font-size:0.78rem; color:#a0bfab; user-select:none;}
   .toggle input{width:18px;height:18px; accent-color: var(--accent);}
@@ -213,9 +229,9 @@
     .toggle-row{margin-top:8px;}
     .toggle{font-size:0.86rem;}
   }
-
 </style>
 </head>
+
 <body>
 
 <header>
@@ -225,6 +241,7 @@
     <button class="btn-icon" id="locBtn" title="Posizione attuale">📍</button>
     <button class="btn" id="searchBtn">Cerca</button>
   </div>
+
   <div class="legend">
     <div class="legend-dot" style="background:#ff4444"></div>1–40%
     <div class="legend-dot" style="background:#ffcc00"></div>40–65%
@@ -239,20 +256,20 @@
   </div>
 
   <div class="time-badge">
-  ⏱ <span id="timeDisplay">--:--</span>
-  <input id="timePicker" type="time" style="
-    margin-left:8px;
-    background:transparent;
-    color:var(--text);
-    border:1px solid var(--border);
-    border-radius:8px;
-    padding:2px 6px;
-    font-family:'DM Mono', monospace;
-    font-size:0.72rem;
-    width:92px;
-  ">
-  <button id="timeReset" class="btn-icon" title="Torna all'orario reale">↺</button>
-</div>
+    ⏱ <span id="timeDisplay">--:--</span>
+    <input id="timePicker" type="time" style="
+      margin-left:8px;
+      background:transparent;
+      color:var(--text);
+      border:1px solid var(--border);
+      border-radius:8px;
+      padding:2px 6px;
+      font-family:'DM Mono', monospace;
+      font-size:0.72rem;
+      width:92px;
+    ">
+    <button id="timeReset" class="btn-icon" title="Torna all'orario reale">↺</button>
+  </div>
 </header>
 
 <div class="main">
@@ -364,6 +381,7 @@ document.getElementById('timeReset').addEventListener('click', async () => {
   refreshClockUI();
   await loadRoads(); // ricalcola con ora reale
 });
+
 // Toggle filtro vie senza divieto
 document.getElementById('onlyAllowedToggle').addEventListener('change', async () => {
   await loadRoads();
@@ -386,11 +404,9 @@ function isExplicitlyForbiddenParking(tags){
 
   const all = lanes.concat(conds);
 
-  // OSM values often include: no_parking, no_stopping
   if (all.some(v => v.includes('no_stopping'))) return true;
   if (all.some(v => v.includes('no_parking'))) return true;
 
-  // Some mappers use "restricted" / "private" for access
   const access = String(tags['access']||'').toLowerCase();
   const motor = String(tags['motor_vehicle']||'').toLowerCase();
   if (access === 'no' || access === 'private') return true;
@@ -419,8 +435,6 @@ function poiKind(tags){
 }
 
 async function loadPOIs(bounds){
-  // Overpass: prende POI con name + (shop/amenity/tourism) e prova a leggerne addr:street
-  // NB: non tutti i POI hanno addr:street in OSM → in quel caso non possiamo “collegarli” alla via
   const south = bounds.getSouth(), west = bounds.getWest(), north = bounds.getNorth(), east = bounds.getEast();
   const query = `
 [out:json][timeout:20];
@@ -447,7 +461,6 @@ out tags;`;
       if (!name) return;
       (tmp[street] ||= []).push({ name, kind: poiKind(t) });
     });
-    // dedup per via
     Object.keys(tmp).forEach(k=>{
       const seen = new Set();
       tmp[k] = tmp[k].filter(p=>{
@@ -459,23 +472,19 @@ out tags;`;
     });
     poiByStreet = tmp;
   }catch(e){
-    // se Overpass è lento/bloccato, non rompiamo la mappa
     poiByStreet = {};
   }
 }
 
 const map = L.map('map', { zoomControl: true }).setView([41.9028, 12.4964], 15);
 
-// Dark base tiles (no roads shown — we draw our own)
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
   subdomains: 'abcd', maxZoom: 20
 }).addTo(map);
 
-// Labels only layer on top (so street names are visible)
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
   subdomains: 'abcd', maxZoom: 20, zIndex: 10, pane: 'overlayPane'
 }).addTo(map);
-
 
 // ── MOBILE SHEET TOGGLE ───────────────────────────────────────────────────
 (function initMobileSheet(){
@@ -487,14 +496,12 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.p
   btn.addEventListener('click', () => sheet.classList.add('open'));
   closeBtn.addEventListener('click', () => sheet.classList.remove('open'));
 
-  // chiudi toccando fuori (solo su mobile)
   map.on('click', () => sheet.classList.remove('open'));
 })();
 
 // ── STATE ──────────────────────────────────────────────────────────────────
-let destMarker = null;
-let roadLayer = L.layerGroup().addTo(map); // all colored road polylines
-let destLayer = L.layerGroup().addTo(map); // destination marker on top
+let roadLayer = L.layerGroup().addTo(map);
+let destLayer = L.layerGroup().addTo(map);
 let isLoading = false;
 let loadTimer = null;
 let lastBounds = null;
@@ -533,8 +540,6 @@ async function geocode(q) {
 async function fetchRoads(bounds) {
   const { _southWest: sw, _northEast: ne } = bounds;
   const bbox = `${sw.lat},${sw.lng},${ne.lat},${ne.lng}`;
-
-  // Fetch every drivable/walkable road type + any parking tags
   const q = `
 [out:json][timeout:40];
 (
@@ -571,7 +576,6 @@ function parseDur(str) {
   return h ? +h[1]*60 : m ? +m[1] : null;
 }
 
-
 // ── LEARNING (feedback utente, salva su localStorage) ───────────────────────
 function loadFeedback() {
   try { return JSON.parse(localStorage.getItem('pf_feedback') || '{}'); }
@@ -582,7 +586,6 @@ function saveFeedback(obj) {
 }
 function getWayKey(wayId) { return String(wayId); }
 
-// Aggiorna conteggi success/fail per una strada e ricarica i punteggi
 window.pfFeedback = async function(wayId, ok) {
   const fb = loadFeedback();
   const k = getWayKey(wayId);
@@ -594,11 +597,9 @@ window.pfFeedback = async function(wayId, ok) {
   const msg = ok ? '✅ Feedback salvato: qui hai trovato parcheggio' : '📝 Feedback salvato: qui NON hai trovato parcheggio';
   document.getElementById('statusBar').textContent = msg;
 
-  // ricalcola colori/punteggi
   await loadRoads();
 };
 
-// Calcola una "probabilità appresa" (Bayes semplice) e la fonde con lo score base
 function applyLearnedScore(baseScore, wayId, reasons) {
   const fb = loadFeedback();
   const k = getWayKey(wayId);
@@ -609,10 +610,7 @@ function applyLearnedScore(baseScore, wayId, reasons) {
   const f = rec.fail || 0;
   const n = s + f;
 
-  // Prior Beta(1,1) → media (s+1)/(n+2)
   const learned = ((s + 1) / (n + 2)) * 100;
-
-  // Peso cresce con i dati (fino al 35%)
   const w = Math.min(0.35, (n / 20) * 0.35);
 
   const blended = Math.round((1 - w) * baseScore + w * learned);
@@ -632,7 +630,6 @@ function computeScore(tags, distFromDest, wayId) {
   let score = 55;
   const reasons = [];
 
-  // 1. ORA DEL GIORNO
   const isNight   = hour >= 23 || hour <= 6;
   const peakMorn  = hour >= 8  && hour <= 10;
   const peakLunch = hour >= 12 && hour <= 14;
@@ -645,7 +642,6 @@ function computeScore(tags, distFromDest, wayId) {
   else if (peakEve)   { score -= 24; reasons.push('🕔 Ora di punta serale'); }
   else                { score +=  6; reasons.push('🕑 Orario tranquillo'); }
 
-  // 2. GIORNO
   if (isWeekend) {
     const hasCond = tags['parking:condition:right']||tags['parking:condition:left']||tags['parking:condition:both'];
     if (hasCond)  { score -= 8;  reasons.push('📅 Weekend: più trafficato'); }
@@ -654,7 +650,6 @@ function computeScore(tags, distFromDest, wayId) {
     reasons.push('📆 Giorno lavorativo');
   }
 
-  // 3. TIPO CORSIA PARCHEGGIO (dati espliciti OSM)
   const lane = tags['parking:lane:both']||tags['parking:lane:right']||tags['parking:lane:left']||'';
   if (lane === 'parallel')      { score += 3;  reasons.push('🅿 Sosta parallela'); }
   if (lane === 'diagonal')      { score += 8;  reasons.push('🅿 Diagonale: più posti'); }
@@ -662,7 +657,6 @@ function computeScore(tags, distFromDest, wayId) {
   if (lane === 'no_parking')    { score = 5;   reasons.length=0; reasons.push('🚫 Sosta vietata'); }
   if (lane === 'no_stopping')   { score = 3;   reasons.length=0; reasons.push('⛔ Fermata vietata'); }
 
-  // 4. TIPO DI STRADA (fallback per strade senza tag parcheggio)
   const hw = tags.highway || '';
   if (!lane) {
     if (hw === 'living_street')  { score += 14; reasons.push('🏘 Zona residenziale calma'); }
@@ -674,14 +668,12 @@ function computeScore(tags, distFromDest, wayId) {
     if (hw === 'primary' || hw === 'primary_link')     { score -= 15; reasons.push('🛣 Strada primaria: difficile'); }
   }
 
-  // 5. CONDIZIONE
   const cond = tags['parking:condition:both']||tags['parking:condition:right']||tags['parking:condition:left']||'';
   if (cond === 'free')      { score += 10; reasons.push('✅ Gratuito'); }
   if (cond === 'disc')      { score += 7;  reasons.push('🔵 Disco orario: buona rotazione'); }
   if (cond === 'ticket')    { score -= 5;  reasons.push('🎟 A pagamento'); }
   if (cond === 'residents') { score -= 20; reasons.push('🏠 Solo residenti'); }
 
-  // 6. MAXSTAY
   const ms = tags['parking:condition:right:maxstay']||tags['parking:condition:left:maxstay']||tags.maxstay||'';
   if (ms) {
     const mins = parseDur(ms);
@@ -689,7 +681,6 @@ function computeScore(tags, distFromDest, wayId) {
     else if (mins && mins <= 120) { score += 5; reasons.push(`⏱ Max ${ms}`); }
   }
 
-  // 7. DISTANZA DALLA DESTINAZIONE (se ricerca attiva)
   if (distFromDest !== null) {
     if (distFromDest < 100)      { score -= 20; reasons.push('📍 Vicinissimo: alta domanda'); }
     else if (distFromDest < 200) { score -= 12; }
@@ -698,7 +689,6 @@ function computeScore(tags, distFromDest, wayId) {
     else                         { score += 12; reasons.push('📍 Zona meno affollata'); }
   }
 
-  // 8. APPRENDIMENTO DA FEEDBACK UTENTE (solo se wayId disponibile)
   if (wayId !== undefined && wayId !== null) {
     score = applyLearnedScore(score, wayId, reasons);
   }
@@ -707,7 +697,6 @@ function computeScore(tags, distFromDest, wayId) {
   return { score, reasons };
 }
 
-// ── ROAD WIDTH by highway type ─────────────────────────────────────────────
 function roadWeight(tags) {
   const hw = tags.highway || '';
   if (hw === 'primary' || hw === 'primary_link')     return 5;
@@ -718,12 +707,10 @@ function roadWeight(tags) {
   return 3;
 }
 
-// ── STREET NAME ────────────────────────────────────────────────────────────
 function getName(tags) {
   return tags.name || tags['addr:street'] || tags.ref || 'Via senza nome';
 }
 
-// ── RENDER SIDEBAR ─────────────────────────────────────────────────────────
 function renderSidebar(streets, destLat, destLon) {
   const list = document.getElementById('sidebarList');
   document.getElementById('streetCount').textContent = streets.length;
@@ -737,7 +724,6 @@ function renderSidebar(streets, destLat, destLon) {
     return;
   }
 
-  // Sort by score desc for sidebar
   const sorted = [...streets].sort((a,b) => b.prob.score - a.prob.score || a.name.localeCompare(b.name));
 
   list.innerHTML = sorted.slice(0, 60).map((s, i) => {
@@ -768,13 +754,11 @@ function renderSidebar(streets, destLat, destLon) {
     </div>`;
   }).join('');
 
-  // Mobile sheet (replica lista)
   const mobileBody = document.getElementById('mobileSheetBody');
   const mobileCount = document.getElementById('mobileStreetCount');
   if (mobileBody && mobileCount) {
     mobileBody.innerHTML = list.innerHTML;
     mobileCount.textContent = streets.length;
-    // stessa logica click per zoom
     mobileBody.querySelectorAll('.street-item').forEach(el => {
       el.addEventListener('click', () => {
         const wid = el.dataset.wid;
@@ -782,18 +766,15 @@ function renderSidebar(streets, destLat, destLon) {
         if (s && s.polyline) {
           map.fitBounds(s.polyline.getBounds(), { padding:[40,40], maxZoom:18 });
           s.polyline.openPopup();
-          // chiudi sheet dopo click
           const sheet = document.getElementById('mobileSheet');
           if (sheet) sheet.classList.remove('open');
         }
       });
     });
-    // mostra bottone lista su mobile
     const btn = document.getElementById('mobileListBtn');
     if (btn) btn.style.display = 'block';
   }
 
-  // Click → zoom to street
   list.querySelectorAll('.street-item').forEach(el => {
     el.addEventListener('click', () => {
       const wid = el.dataset.wid;
@@ -806,13 +787,11 @@ function renderSidebar(streets, destLat, destLon) {
   });
 }
 
-// ── MAIN ROAD LOAD ─────────────────────────────────────────────────────────
 let destLat = null, destLon = null;
 
 async function loadRoads() {
   if (isLoading) return;
 
-  // Only load if zoom is high enough
   const zoom = map.getZoom();
   if (zoom < 13) {
     roadLayer.clearLayers();
@@ -824,7 +803,6 @@ async function loadRoads() {
 
   const bounds = map.getBounds();
 
-  // Skip if bounds haven't changed much
   if (lastBounds) {
     const moved = hav(
       bounds.getCenter().lat, bounds.getCenter().lng,
@@ -842,12 +820,9 @@ async function loadRoads() {
   document.getElementById('statusBar').innerHTML = `<div class="pulse"></div> Caricamento…`;
 
   try {
-    // Carica POI (attività) nell'area visibile (best effort)
     await loadPOIs(bounds);
-
     const ways = await fetchRoads(bounds);
 
-    // Deduplicate by way ID
     const seen = new Set();
     const streets = [];
 
@@ -858,9 +833,9 @@ async function loadRoads() {
 
       const tags = way.tags || {};
 
-      // Se richiesto, escludi solo le vie con divieto esplicito (no parking / no stopping)
       const onlyAllowed = document.getElementById('onlyAllowedToggle').checked;
       if (onlyAllowed && isExplicitlyForbiddenParking(tags)) return;
+
       const geom = way.geometry;
       const mid = geom[Math.floor(geom.length/2)];
       const dist = (destLat !== null) ? hav(destLat, destLon, mid.lat, mid.lon) : null;
@@ -870,10 +845,7 @@ async function loadRoads() {
       streets.push({ name, tags, dist, prob, latlngs, wayId: way.id });
     });
 
-    // Clear and redraw all roads
     roadLayer.clearLayers();
-
-    // Draw roads sorted by score ASC so best roads are drawn on top
     streets.sort((a, b) => a.prob.score - b.prob.score);
 
     streets.forEach(s => {
@@ -926,14 +898,12 @@ async function loadRoads() {
             👎 Non trovato
           </button>
         </div>
-
       `);
 
       roadLayer.addLayer(poly);
       s.polyline = poly;
     });
 
-    // Sidebar shows top streets near destination or just top by score
     const forSidebar = destLat !== null
       ? [...streets].filter(s => s.dist !== null && s.dist < 800).sort((a,b) => b.prob.score - a.prob.score)
       : [...streets].sort((a,b) => b.prob.score - a.prob.score);
@@ -941,8 +911,8 @@ async function loadRoads() {
     renderSidebar(forSidebar, destLat, destLon);
 
     const n = new Date();
-    const ts = String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
-    document.getElementById('statusBar').textContent = `${streets.length} strade · ore ${ts}`;
+    const ts2 = String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
+    document.getElementById('statusBar').textContent = `${streets.length} strade · ore ${ts2}`;
 
   } catch(e) {
     document.getElementById('statusBar').textContent = `❌ ${e.message}`;
@@ -953,13 +923,11 @@ async function loadRoads() {
   isLoading = false;
 }
 
-// ── MAP EVENTS: reload roads on move/zoom ──────────────────────────────────
 map.on('moveend zoomend', () => {
   clearTimeout(loadTimer);
-  loadTimer = setTimeout(loadRoads, 600); // debounce
+  loadTimer = setTimeout(loadRoads, 600);
 });
 
-// ── GEOCODING + SEARCH ─────────────────────────────────────────────────────
 async function doSearch(lat, lon, label) {
   destLat = lat; destLon = lon;
 
@@ -1010,5 +978,20 @@ map.on('click', async e => {
 // Initial load
 loadRoads();
 </script>
+
+<!-- PWA: register Service Worker -->
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", async () => {
+      try {
+        await navigator.serviceWorker.register("./service-worker.js");
+      } catch (e) {
+        // se fallisce non blocchiamo il sito
+        console.warn("Service Worker non registrato:", e);
+      }
+    });
+  }
+</script>
+
 </body>
 </html>
