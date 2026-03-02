@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ParkFinder — Mappa Completa</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0f0d;
+    --surface: #111812;
+    --surface2: #192119;
+    --accent: #3dffa0;
+    --warn: #ffb830;
+    --text: #e8f5ee;
+    --muted: #5a7a65;
+    --border: #1e2e23;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'DM Mono', monospace;
+    background: var(--bg); color: var(--text);
+    height: 100vh; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  header {
+    padding: 10px 18px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    z-index: 1000; flex-shrink: 0; flex-wrap: wrap;
+  }
+  .logo {
+    font-family: 'Syne', sans-serif; font-weight: 800;
+    font-size: 1.1rem; color: var(--accent); white-space: nowrap;
+  }
+  .logo span { color: var(--muted); font-weight: 400; }
+  .search-bar { flex:1; display:flex; gap:7px; min-width:180px; }
+  .search-bar input {
+    flex:1; padding:7px 12px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text);
+    font-family: 'DM Mono', monospace; font-size: 0.8rem;
+    outline: none; transition: border-color 0.2s;
+  }
+  .search-bar input:focus { border-color: var(--accent); }
+  .search-bar input::placeholder { color: var(--muted); }
+  .btn {
+    padding: 7px 14px; background: var(--accent); color: #000;
+    border: none; border-radius: 6px;
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.8rem;
+    cursor: pointer; transition: background 0.2s, transform 0.1s; white-space: nowrap;
+  }
+  .btn:hover { background: #5fffb5; }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { background: var(--muted); cursor: not-allowed; }
+  .btn-icon {
+    padding: 7px 10px; background: var(--surface2);
+    color: var(--accent); border: 1px solid var(--accent);
+    border-radius: 6px; font-size: 0.95rem; cursor: pointer;
+  }
+  .btn-icon:hover { background: rgba(61,255,160,0.1); }
+  .legend {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 0.7rem; color: var(--muted);
+    padding: 4px 10px; background: var(--surface2);
+    border-radius: 20px; border: 1px solid var(--border); white-space: nowrap;
+  }
+  .legend-dot { width:10px; height:10px; border-radius:2px; flex-shrink:0; }
+  .time-badge {
+    font-size: 0.7rem; color: var(--muted);
+    padding: 4px 10px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 20px; white-space: nowrap;
+  }
+  .time-badge span { color: var(--accent); font-weight: 600; }
+
+  .main { flex:1; display:flex; overflow:hidden; position: relative; }
+  #map { flex:1; z-index:1; }
+
+  /* Loading overlay on map */
+  #mapOverlay {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    background: rgba(17,24,18,0.92); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 16px;
+    font-size: 0.75rem; color: var(--accent);
+    display: none; align-items: center; gap: 8px;
+    z-index: 1000; white-space: nowrap;
+    backdrop-filter: blur(4px);
+  }
+  #mapOverlay.visible { display: flex; }
+
+  .sidebar {
+    width: 285px; background: var(--surface);
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden; z-index: 100;
+  }
+  .sidebar-header {
+    padding: 12px 14px; border-bottom: 1px solid var(--border);
+    font-family: 'Syne', sans-serif; font-weight: 700;
+    font-size: 0.78rem; color: var(--muted);
+    letter-spacing: 0.06em; text-transform: uppercase;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .sidebar-count { color: var(--accent); font-size: 0.75rem; }
+  .sidebar-list {
+    flex:1; overflow-y:auto;
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+  .street-item {
+    padding: 10px 13px; border-bottom: 1px solid var(--border);
+    cursor: pointer; transition: background 0.15s;
+  }
+  .street-item:hover { background: var(--surface2); }
+  .street-item.top { border-left: 3px solid var(--accent); }
+  .street-row { display:flex; align-items:center; gap:8px; margin-bottom:5px; }
+  .street-swatch { width:11px; height:11px; border-radius:2px; flex-shrink:0; }
+  .street-name {
+    font-size: 0.76rem; font-weight: 500; flex:1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .street-score { font-size: 0.76rem; font-weight: 700; }
+  .prob-bar-wrap { display:flex; align-items:center; gap:6px; }
+  .prob-bar-bg { flex:1; height:3px; background:var(--border); border-radius:2px; overflow:hidden; }
+  .prob-bar-fill { height:100%; border-radius:2px; }
+  .prob-pct { font-size:0.65rem; min-width:36px; text-align:right; color:var(--muted); }
+  .street-meta { font-size:0.65rem; color:var(--muted); margin-top:3px; }
+  .factor-tip { font-size:0.63rem; color:var(--muted); font-style:italic; margin-top:2px; }
+  .badge { padding:1px 5px; border-radius:3px; font-size:0.6rem; font-weight:600; margin-right:3px; }
+  .badge-top { background:var(--accent); color:#000; }
+  .badge-free { background:rgba(61,255,160,0.15); color:var(--accent); }
+  .badge-res { background:rgba(255,68,68,0.15); color:#ff6666; }
+
+  .status-bar {
+    padding: 8px 13px; border-top: 1px solid var(--border);
+    font-size: 0.7rem; color: var(--muted);
+    min-height: 34px; display:flex; align-items:center; gap:7px;
+  }
+  .pulse {
+    width:7px; height:7px; border-radius:50%;
+    background: var(--accent); animation: pulse 1.2s infinite; flex-shrink:0;
+  }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
+  .empty-state {
+    padding:36px 18px; text-align:center;
+    color:var(--muted); font-size:0.78rem; line-height:1.8;
+  }
+  .empty-state .big { font-size:1.8rem; margin-bottom:8px; }
+
+  /* Leaflet */
+  .leaflet-popup-content-wrapper {
+    background:#192119; color:#e8f5ee;
+    border:1px solid #1e2e23; border-radius:8px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.6);
+    font-family:'DM Mono',monospace; font-size:0.76rem;
+  }
+  .leaflet-popup-tip { background:#192119; }
+  .leaflet-popup-content { margin:11px 13px; line-height:1.65; }
+  .popup-title { font-family:'Syne',sans-serif; font-weight:700; font-size:0.88rem; margin-bottom:4px; }
+  .leaflet-control-zoom a { background:#192119!important; color:#3dffa0!important; border-color:#1e2e23!important; }
+  .leaflet-control-attribution { display:none; }
+  @media (max-width:600px) { .sidebar{display:none;} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Park<span>Finder</span></div>
+  <div class="search-bar">
+    <input type="text" id="searchInput" placeholder="Destinazione…"/>
+    <button class="btn-icon" id="locBtn" title="Posizione attuale">📍</button>
+    <button class="btn" id="searchBtn">Cerca</button>
+  </div>
+  <div class="legend">
+    <div class="legend-dot" style="background:#ff4444"></div>0–50%
+    <div class="legend-dot" style="background:#ffcc00"></div>50–75%
+    <div class="legend-dot" style="background:#3dffa0"></div>75–100%
+  </div>
+  <div class="time-badge">
+  ⏱ <span id="timeDisplay">--:--</span>
+  <input id="timePicker" type="time" style="
+    margin-left:8px;
+    background:transparent;
+    color:var(--text);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:2px 6px;
+    font-family:'DM Mono', monospace;
+    font-size:0.72rem;
+    width:92px;
+  ">
+  <button id="timeReset" class="btn-icon" title="Torna all'orario reale">↺</button>
+</div>
+</header>
+
+<div class="main">
+  <div id="map"></div>
+  <div id="mapOverlay">
+    <div class="pulse"></div>
+    <span id="overlayText">Caricamento strade…</span>
+  </div>
+  <div class="sidebar">
+    <div class="sidebar-header">
+      Strade nell'area
+      <span class="sidebar-count" id="streetCount">0</span>
+    </div>
+    <div class="sidebar-list" id="sidebarList">
+      <div class="empty-state">
+        <div class="big">🗺️</div>
+        Cerca una destinazione<br>o naviga sulla mappa.<br><br>
+        Tutte le strade verranno<br>colorate per probabilità<br>di posto libero.
+      </div>
+    </div>
+    <div class="status-bar" id="statusBar">Pronto</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// ── TIME OVERRIDE (manuale o reale) ─────────────────────────────────────────
+let timeOverride = null; // { hour: number, minute: number } oppure null
+
+function pad2(x) { return String(x).padStart(2, '0'); }
+
+function setTimeBadgeText(h, m, isManual) {
+  const t = `${pad2(h)}:${pad2(m)}`;
+  const el = document.getElementById('timeDisplay');
+  el.textContent = t;
+  el.style.color = isManual ? 'var(--warn)' : 'var(--accent)';
+}
+
+function loadTimeOverrideFromStorage() {
+  const raw = localStorage.getItem('pf_timeOverride'); // es: "18:30"
+  if (!raw) return null;
+  const [hh, mm] = raw.split(':').map(Number);
+  if (Number.isFinite(hh) && Number.isFinite(mm)) return { hour: hh, minute: mm };
+  return null;
+}
+
+function saveTimeOverrideToStorage(obj) {
+  if (!obj) localStorage.removeItem('pf_timeOverride');
+  else localStorage.setItem('pf_timeOverride', `${pad2(obj.hour)}:${pad2(obj.minute)}`);
+}
+
+function getEffectiveNow() {
+  const real = new Date();
+  if (!timeOverride) return real;
+  const d = new Date(real);
+  d.setHours(timeOverride.hour, timeOverride.minute, 0, 0);
+  return d;
+}
+
+function refreshClockUI() {
+  const picker = document.getElementById('timePicker');
+  const resetBtn = document.getElementById('timeReset');
+  const n = new Date();
+
+  if (timeOverride) {
+    picker.value = `${pad2(timeOverride.hour)}:${pad2(timeOverride.minute)}`;
+    setTimeBadgeText(timeOverride.hour, timeOverride.minute, true);
+  } else {
+    picker.value = '';
+    setTimeBadgeText(n.getHours(), n.getMinutes(), false);
+  }
+
+  resetBtn.disabled = !timeOverride;
+}
+
+// Init UI
+timeOverride = loadTimeOverrideFromStorage();
+refreshClockUI();
+
+// aggiorna badge ogni 30s (solo per mostrare l'orario reale se non override)
+setInterval(() => {
+  if (!timeOverride) refreshClockUI();
+}, 30000);
+
+// Eventi input
+document.getElementById('timePicker').addEventListener('input', async (e) => {
+  const v = e.target.value; // "HH:MM"
+  if (!v) return;
+  const [hh, mm] = v.split(':').map(Number);
+  timeOverride = { hour: hh, minute: mm };
+  saveTimeOverrideToStorage(timeOverride);
+  refreshClockUI();
+  await loadRoads(); // ricalcola colori/punteggi
+});
+
+document.getElementById('timeReset').addEventListener('click', async () => {
+  timeOverride = null;
+  saveTimeOverrideToStorage(null);
+  refreshClockUI();
+  await loadRoads(); // ricalcola con ora reale
+});
+
+// ── MAP ────────────────────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true }).setView([41.9028, 12.4964], 15);
+
+// Dark base tiles (no roads shown — we draw our own)
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+  subdomains: 'abcd', maxZoom: 20
+}).addTo(map);
+
+// Labels only layer on top (so street names are visible)
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
+  subdomains: 'abcd', maxZoom: 20, zIndex: 10, pane: 'overlayPane'
+}).addTo(map);
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+let destMarker = null;
+let roadLayer = L.layerGroup().addTo(map); // all colored road polylines
+let destLayer = L.layerGroup().addTo(map); // destination marker on top
+let isLoading = false;
+let loadTimer = null;
+let lastBounds = null;
+
+// ── DEST ICON ──────────────────────────────────────────────────────────────
+const destIcon = L.divIcon({
+  html: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">
+    <path d="M16 0C7.2 0 0 7.2 0 16c0 11 16 26 16 26S32 27 32 16C32 7.2 24.8 0 16 0z" fill="#ff4f6e"/>
+    <circle cx="16" cy="16" r="7" fill="#fff"/>
+  </svg>`,
+  className:'', iconSize:[32,42], iconAnchor:[16,42]
+});
+
+// ── COLORS ─────────────────────────────────────────────────────────────────
+function scoreColor(s) {
+  return s >= 75 ? '#3dffa0' : s >= 50 ? '#ffcc00' : '#ff4444';
+}
+function scoreLabel(s) {
+  if (s >= 75) return 'Alta';
+  if (s >= 50) return 'Media';
+  return 'Bassa';
+}
+
+// ── GEOCODING ──────────────────────────────────────────────────────────────
+async function geocode(q) {
+  const r = await fetch(
+    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`,
+    { headers: { 'Accept-Language': 'it' } }
+  );
+  const d = await r.json();
+  if (!d.length) throw new Error('Indirizzo non trovato');
+  return { lat: +d[0].lat, lon: +d[0].lon, display: d[0].display_name };
+}
+
+// ── OVERPASS: fetch ALL roads in bounding box ──────────────────────────────
+async function fetchRoads(bounds) {
+  const { _southWest: sw, _northEast: ne } = bounds;
+  const bbox = `${sw.lat},${sw.lng},${ne.lat},${ne.lng}`;
+
+  // Fetch every drivable/walkable road type + any parking tags
+  const q = `
+[out:json][timeout:40];
+(
+  way["highway"~"^(residential|tertiary|tertiary_link|secondary|secondary_link|primary|primary_link|living_street|unclassified|service|road)$"](${bbox});
+  way["parking:lane:right"](${bbox});
+  way["parking:lane:left"](${bbox});
+  way["parking:lane:both"](${bbox});
+  way["parking:condition:right"](${bbox});
+  way["parking:condition:left"](${bbox});
+  way["parking:condition:both"](${bbox});
+  way["amenity"="parking"]["parking"~"street_side|on_street"](${bbox});
+);
+out geom qt;
+  `;
+  const r = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST', body: 'data=' + encodeURIComponent(q)
+  });
+  if (!r.ok) throw new Error(`Overpass error: ${r.status}`);
+  return (await r.json()).elements || [];
+}
+
+// ── HAVERSINE ──────────────────────────────────────────────────────────────
+function hav(la1, lo1, la2, lo2) {
+  const R = 6371000, d1=(la2-la1)*Math.PI/180, d2=(lo2-lo1)*Math.PI/180;
+  const a = Math.sin(d1/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(d2/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// ── PARSE DURATION ─────────────────────────────────────────────────────────
+function parseDur(str) {
+  if (!str) return null;
+  str = str.toLowerCase();
+  const h = str.match(/(\d+)\s*h/), m = str.match(/(\d+)\s*min/);
+  return h ? +h[1]*60 : m ? +m[1] : null;
+}
+
+// ── PROBABILITY ENGINE ────────────────────────────────────────────────────
+function computeScore(tags, distFromDest) {
+  const now = getEffectiveNow();
+  const hour = now.getHours();
+  const dow = now.getDay();
+  let score = 55;
+  const reasons = [];
+
+  // 1. ORA DEL GIORNO
+  const isNight   = hour >= 23 || hour <= 6;
+  const peakMorn  = hour >= 8  && hour <= 10;
+  const peakLunch = hour >= 12 && hour <= 14;
+  const peakEve   = hour >= 17 && hour <= 20;
+  const isWeekend = dow === 0 || dow === 6;
+
+  if (isNight)        { score += 28; reasons.push('🌙 Notte: massima disponibilità'); }
+  else if (peakMorn)  { score -= 22; reasons.push('🕗 Ora di punta mattutina'); }
+  else if (peakLunch) { score -= 16; reasons.push('🕛 Ora di punta pranzo'); }
+  else if (peakEve)   { score -= 24; reasons.push('🕔 Ora di punta serale'); }
+  else                { score +=  6; reasons.push('🕑 Orario tranquillo'); }
+
+  // 2. GIORNO
+  if (isWeekend) {
+    const hasCond = tags['parking:condition:right']||tags['parking:condition:left']||tags['parking:condition:both'];
+    if (hasCond)  { score -= 8;  reasons.push('📅 Weekend: più trafficato'); }
+    else          { score += 10; reasons.push('📅 Weekend: zona tranquilla'); }
+  } else {
+    reasons.push('📆 Giorno lavorativo');
+  }
+
+  // 3. TIPO CORSIA PARCHEGGIO (dati espliciti OSM)
+  const lane = tags['parking:lane:both']||tags['parking:lane:right']||tags['parking:lane:left']||'';
+  if (lane === 'parallel')      { score += 3;  reasons.push('🅿 Sosta parallela'); }
+  if (lane === 'diagonal')      { score += 8;  reasons.push('🅿 Diagonale: più posti'); }
+  if (lane === 'perpendicular') { score += 10; reasons.push('🅿 Perpendicolare: molti posti'); }
+  if (lane === 'no_parking')    { score = 5;   reasons.length=0; reasons.push('🚫 Sosta vietata'); }
+  if (lane === 'no_stopping')   { score = 3;   reasons.length=0; reasons.push('⛔ Fermata vietata'); }
+
+  // 4. TIPO DI STRADA (fallback per strade senza tag parcheggio)
+  const hw = tags.highway || '';
+  if (!lane) {
+    if (hw === 'living_street')  { score += 14; reasons.push('🏘 Zona residenziale calma'); }
+    if (hw === 'residential')    { score += 8;  reasons.push('🏘 Via residenziale'); }
+    if (hw === 'unclassified')   { score += 6;  reasons.push('🛣 Via locale'); }
+    if (hw === 'service')        { score += 4;  reasons.push('🛣 Via di servizio'); }
+    if (hw === 'tertiary' || hw === 'tertiary_link') { score += 2; reasons.push('🛣 Via terziaria'); }
+    if (hw === 'secondary' || hw === 'secondary_link') { score -= 6; reasons.push('🛣 Strada secondaria'); }
+    if (hw === 'primary' || hw === 'primary_link')     { score -= 15; reasons.push('🛣 Strada primaria: difficile'); }
+  }
+
+  // 5. CONDIZIONE
+  const cond = tags['parking:condition:both']||tags['parking:condition:right']||tags['parking:condition:left']||'';
+  if (cond === 'free')      { score += 10; reasons.push('✅ Gratuito'); }
+  if (cond === 'disc')      { score += 7;  reasons.push('🔵 Disco orario: buona rotazione'); }
+  if (cond === 'ticket')    { score -= 5;  reasons.push('🎟 A pagamento'); }
+  if (cond === 'residents') { score -= 20; reasons.push('🏠 Solo residenti'); }
+
+  // 6. MAXSTAY
+  const ms = tags['parking:condition:right:maxstay']||tags['parking:condition:left:maxstay']||tags.maxstay||'';
+  if (ms) {
+    const mins = parseDur(ms);
+    if (mins && mins <= 30)  { score += 12; reasons.push(`⏱ Max ${ms}: alta rotazione`); }
+    else if (mins && mins <= 120) { score += 5; reasons.push(`⏱ Max ${ms}`); }
+  }
+
+  // 7. DISTANZA DALLA DESTINAZIONE (se ricerca attiva)
+  if (distFromDest !== null) {
+    if (distFromDest < 100)      { score -= 20; reasons.push('📍 Vicinissimo: alta domanda'); }
+    else if (distFromDest < 200) { score -= 12; }
+    else if (distFromDest < 350) { score -=  4; }
+    else if (distFromDest < 550) { score +=  6; reasons.push('📍 Distanza moderata'); }
+    else                         { score += 12; reasons.push('📍 Zona meno affollata'); }
+  }
+
+  score = Math.max(3, Math.min(97, Math.round(score)));
+  return { score, reasons };
+}
+
+// ── ROAD WIDTH by highway type ─────────────────────────────────────────────
+function roadWeight(tags) {
+  const hw = tags.highway || '';
+  if (hw === 'primary' || hw === 'primary_link')     return 5;
+  if (hw === 'secondary' || hw === 'secondary_link') return 4;
+  if (hw === 'tertiary' || hw === 'tertiary_link')   return 3.5;
+  if (hw === 'residential' || hw === 'living_street')return 3;
+  if (hw === 'service')                              return 2;
+  return 3;
+}
+
+// ── STREET NAME ────────────────────────────────────────────────────────────
+function getName(tags) {
+  return tags.name || tags['addr:street'] || tags.ref || 'Via senza nome';
+}
+
+// ── RENDER SIDEBAR ─────────────────────────────────────────────────────────
+function renderSidebar(streets, destLat, destLon) {
+  const list = document.getElementById('sidebarList');
+  document.getElementById('streetCount').textContent = streets.length;
+
+  if (!streets.length) {
+    list.innerHTML = `<div class="empty-state"><div class="big">😕</div>Nessuna strada trovata<br>in quest'area.</div>`;
+    return;
+  }
+
+  // Sort by score desc for sidebar
+  const sorted = [...streets].sort((a,b) => b.prob.score - a.prob.score || a.name.localeCompare(b.name));
+
+  list.innerHTML = sorted.slice(0, 60).map((s, i) => {
+    const { score, reasons } = s.prob;
+    const color = scoreColor(score);
+    const label = scoreLabel(score);
+    const isTop = i === 0;
+    const cond = s.tags['parking:condition:both']||s.tags['parking:condition:right']||s.tags['parking:condition:left']||'';
+    return `<div class="street-item ${isTop ? 'top' : ''}" data-wid="${s.wayId}">
+      <div class="street-row">
+        <div class="street-swatch" style="background:${color}"></div>
+        <div class="street-name">${s.name}</div>
+        <div class="street-score" style="color:${color}">${score}%</div>
+      </div>
+      <div class="prob-bar-wrap">
+        <div class="prob-bar-bg">
+          <div class="prob-bar-fill" style="width:${score}%;background:${color}"></div>
+        </div>
+        <div class="prob-pct">${label}</div>
+      </div>
+      <div class="street-meta">
+        ${isTop ? '<span class="badge badge-top">⭐ TOP</span>' : ''}
+        ${cond==='free' ? '<span class="badge badge-free">Gratis</span>' : ''}
+        ${cond==='residents' ? '<span class="badge badge-res">Residenti</span>' : ''}
+        ${s.tags.highway ? `<span>${s.tags.highway.replace('_',' ')}</span>` : ''}
+      </div>
+      <div class="factor-tip">${reasons[0]||''}</div>
+    </div>`;
+  }).join('');
+
+  // Click → zoom to street
+  list.querySelectorAll('.street-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const wid = el.dataset.wid;
+      const s = streets.find(x => String(x.wayId) === wid);
+      if (s && s.polyline) {
+        map.fitBounds(s.polyline.getBounds(), { padding:[40,40], maxZoom:18 });
+        s.polyline.openPopup();
+      }
+    });
+  });
+}
+
+// ── MAIN ROAD LOAD ─────────────────────────────────────────────────────────
+let destLat = null, destLon = null;
+
+async function loadRoads() {
+  if (isLoading) return;
+
+  // Only load if zoom is high enough
+  const zoom = map.getZoom();
+  if (zoom < 13) {
+    roadLayer.clearLayers();
+    document.getElementById('statusBar').textContent = 'Ingrandisci la mappa per vedere le strade';
+    document.getElementById('streetCount').textContent = '0';
+    document.getElementById('sidebarList').innerHTML = `<div class="empty-state"><div class="big">🔍</div>Ingrandisci la mappa<br>per vedere le strade colorate.</div>`;
+    return;
+  }
+
+  const bounds = map.getBounds();
+
+  // Skip if bounds haven't changed much
+  if (lastBounds) {
+    const moved = hav(
+      bounds.getCenter().lat, bounds.getCenter().lng,
+      lastBounds.getCenter().lat, lastBounds.getCenter().lng
+    );
+    if (moved < 100 && Math.abs(zoom - lastBounds._zoom) < 0.5) return;
+  }
+  lastBounds = bounds;
+  lastBounds._zoom = zoom;
+
+  isLoading = true;
+  const overlay = document.getElementById('mapOverlay');
+  overlay.classList.add('visible');
+  document.getElementById('overlayText').textContent = 'Caricamento strade…';
+  document.getElementById('statusBar').innerHTML = `<div class="pulse"></div> Caricamento…`;
+
+  try {
+    const ways = await fetchRoads(bounds);
+
+    // Deduplicate by way ID
+    const seen = new Set();
+    const streets = [];
+
+    ways.forEach(way => {
+      if (!way.geometry || way.geometry.length < 2) return;
+      if (seen.has(way.id)) return;
+      seen.add(way.id);
+
+      const tags = way.tags || {};
+      const geom = way.geometry;
+      const mid = geom[Math.floor(geom.length/2)];
+      const dist = (destLat !== null) ? hav(destLat, destLon, mid.lat, mid.lon) : null;
+      const prob = computeScore(tags, dist);
+      const name = getName(tags);
+      const latlngs = geom.map(n => [n.lat, n.lon]);
+      streets.push({ name, tags, dist, prob, latlngs, wayId: way.id });
+    });
+
+    // Clear and redraw all roads
+    roadLayer.clearLayers();
+
+    // Draw roads sorted by score ASC so best roads are drawn on top
+    streets.sort((a, b) => a.prob.score - b.prob.score);
+
+    streets.forEach(s => {
+      const color = scoreColor(s.prob.score);
+      const weight = roadWeight(s.tags);
+      const { score, reasons } = s.prob;
+      const cond = s.tags['parking:condition:both']||s.tags['parking:condition:right']||s.tags['parking:condition:left']||'—';
+      const lane = s.tags['parking:lane:both']||s.tags['parking:lane:right']||s.tags['parking:lane:left']||'—';
+      const now = new Date();
+      const ts = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+
+      const poly = L.polyline(s.latlngs, {
+        color, weight, opacity: 0.85,
+        lineCap:'round', lineJoin:'round'
+      });
+
+      poly.bindPopup(`
+        <div class="popup-title" style="color:${color}">${s.name}</div>
+        <div style="font-size:0.67rem;color:#5a7a65;margin-bottom:7px">Calcolato alle ${ts}</div>
+        <div style="background:rgba(255,255,255,0.07);border-radius:3px;height:6px;overflow:hidden;margin-bottom:7px">
+          <div style="width:${score}%;height:100%;background:${color};border-radius:3px"></div>
+        </div>
+        <div style="font-size:0.88rem;font-weight:700;color:${color};margin-bottom:7px">${score}% — ${scoreLabel(score)} disponibilità</div>
+        <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:6px;margin-bottom:6px">
+          ${reasons.slice(0,4).map(r=>`<div style="font-size:0.7rem;margin:2px 0;color:#a0bfab">${r}</div>`).join('')}
+        </div>
+        <div style="font-size:0.7rem;color:#5a7a65">
+          🛣 Tipo: <b style="color:#e8f5ee">${s.tags.highway||'parking'}</b><br>
+          🅿 Corsia: <b style="color:#e8f5ee">${lane}</b><br>
+          📋 Condizione: <b style="color:#e8f5ee">${cond}</b>
+          ${s.dist !== null ? `<br>📏 ${Math.round(s.dist)} m dalla destinazione` : ''}
+        </div>
+      `);
+
+      roadLayer.addLayer(poly);
+      s.polyline = poly;
+    });
+
+    // Sidebar shows top streets near destination or just top by score
+    const forSidebar = destLat !== null
+      ? [...streets].filter(s => s.dist !== null && s.dist < 800).sort((a,b) => b.prob.score - a.prob.score)
+      : [...streets].sort((a,b) => b.prob.score - a.prob.score);
+
+    renderSidebar(forSidebar, destLat, destLon);
+
+    const n = new Date();
+    const ts = String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
+    document.getElementById('statusBar').textContent = `${streets.length} strade · ore ${ts}`;
+
+  } catch(e) {
+    document.getElementById('statusBar').textContent = `❌ ${e.message}`;
+    console.error(e);
+  }
+
+  overlay.classList.remove('visible');
+  isLoading = false;
+}
+
+// ── MAP EVENTS: reload roads on move/zoom ──────────────────────────────────
+map.on('moveend zoomend', () => {
+  clearTimeout(loadTimer);
+  loadTimer = setTimeout(loadRoads, 600); // debounce
+});
+
+// ── GEOCODING + SEARCH ─────────────────────────────────────────────────────
+async function doSearch(lat, lon, label) {
+  destLat = lat; destLon = lon;
+
+  destLayer.clearLayers();
+  const m = L.marker([lat, lon], { icon: destIcon })
+    .bindPopup(`<div class="popup-title">🎯 Destinazione</div>${label.split(',')[0]}`);
+  destLayer.addLayer(m);
+
+  map.setView([lat, lon], 16);
+  await loadRoads();
+  setTimeout(() => m.openPopup(), 800);
+}
+
+document.getElementById('searchBtn').addEventListener('click', async () => {
+  const q = document.getElementById('searchInput').value.trim();
+  if (!q) return;
+  document.getElementById('statusBar').innerHTML = `<div class="pulse"></div> Geocoding…`;
+  try {
+    const { lat, lon, display } = await geocode(q);
+    await doSearch(lat, lon, display);
+  } catch(e) {
+    document.getElementById('statusBar').textContent = `❌ ${e.message}`;
+  }
+});
+
+document.getElementById('searchInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('searchBtn').click();
+});
+
+document.getElementById('locBtn').addEventListener('click', () => {
+  if (!navigator.geolocation) return alert('Geolocalizzazione non supportata.');
+  document.getElementById('statusBar').innerHTML = `<div class="pulse"></div> Rilevamento…`;
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    document.getElementById('searchInput').value = 'Posizione attuale';
+    await doSearch(lat, lon, 'La mia posizione');
+  }, () => {
+    document.getElementById('statusBar').textContent = `❌ Impossibile ottenere la posizione`;
+  });
+});
+
+map.on('click', async e => {
+  const { lat, lng } = e.latlng;
+  document.getElementById('searchInput').value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  await doSearch(lat, lng, `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+});
+
+// Initial load
+loadRoads();
+</script>
+</body>
+</html>
