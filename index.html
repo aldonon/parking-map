@@ -161,6 +161,59 @@
   .leaflet-control-zoom a { background:#192119!important; color:#3dffa0!important; border-color:#1e2e23!important; }
   .leaflet-control-attribution { display:none; }
   @media (max-width:600px) { .sidebar{display:none;} }
+
+  /* Mobile usability */
+  @media (max-width:600px) {
+    header { padding: 10px 12px; gap: 8px; }
+    .btn, .btn-icon { padding: 10px 14px; border-radius: 10px; }
+    .search-bar input { padding: 10px 12px; font-size: 0.9rem; }
+    .legend { font-size: 0.68rem; }
+    .time-badge { font-size: 0.68rem; }
+    #map { touch-action: pan-x pan-y; }
+    .sidebar { display:none; } /* la lista diventa un pannello mobile */
+    #mobileListBtn {
+      position: absolute; right: 14px; bottom: 14px; z-index: 1200;
+      background: var(--surface2); border: 1px solid var(--accent);
+      color: var(--accent); border-radius: 14px;
+      padding: 10px 12px; font-family: 'Syne', sans-serif; font-weight: 800;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.55);
+    }
+    #mobileSheet {
+      position: absolute; left: 0; right: 0; bottom: 0; z-index: 1300;
+      background: rgba(17,24,18,0.98);
+      border-top: 1px solid var(--border);
+      border-radius: 18px 18px 0 0;
+      max-height: 70vh;
+      transform: translateY(100%);
+      transition: transform 0.22s ease;
+      display: flex; flex-direction: column;
+      backdrop-filter: blur(6px);
+    }
+    #mobileSheet.open { transform: translateY(0); }
+    #mobileSheetHeader {
+      padding: 10px 14px; display:flex; align-items:center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      font-family:'Syne',sans-serif; font-weight: 800; color: var(--text);
+    }
+    #mobileSheetHeader .muted { color: var(--muted); font-size: 0.8rem; font-weight: 700; }
+    #mobileCloseBtn {
+      background: transparent; border: 1px solid var(--border); color: var(--text);
+      border-radius: 10px; padding: 6px 10px; font-size: 1rem;
+    }
+    #mobileSheetBody { overflow:auto; }
+    /* evita che clic su lista muova la mappa sotto */
+    #mobileSheet, #mobileSheet * { touch-action: manipulation; }
+  }
+
+
+  .toggle-row{margin-top:10px; display:flex; gap:10px; align-items:center;}
+  .toggle{display:flex; gap:10px; align-items:center; font-size:0.78rem; color:#a0bfab; user-select:none;}
+  .toggle input{width:18px;height:18px; accent-color: var(--accent);}
+  @media (max-width:720px){
+    .toggle-row{margin-top:8px;}
+    .toggle{font-size:0.86rem;}
+  }
+
 </style>
 </head>
 <body>
@@ -173,10 +226,18 @@
     <button class="btn" id="searchBtn">Cerca</button>
   </div>
   <div class="legend">
-    <div class="legend-dot" style="background:#ff4444"></div>0–50%
-    <div class="legend-dot" style="background:#ffcc00"></div>50–75%
-    <div class="legend-dot" style="background:#3dffa0"></div>75–100%
+    <div class="legend-dot" style="background:#ff4444"></div>1–40%
+    <div class="legend-dot" style="background:#ffcc00"></div>40–65%
+    <div class="legend-dot" style="background:#3dffa0"></div>65–100%
   </div>
+
+  <div class="toggle-row">
+    <label class="toggle">
+      <input type="checkbox" id="onlyAllowedToggle">
+      <span>Mostra solo vie senza divieto (se disponibile)</span>
+    </label>
+  </div>
+
   <div class="time-badge">
   ⏱ <span id="timeDisplay">--:--</span>
   <input id="timePicker" type="time" style="
@@ -200,6 +261,16 @@
     <div class="pulse"></div>
     <span id="overlayText">Caricamento strade…</span>
   </div>
+
+  <button id="mobileListBtn" class="btn-icon" style="display:none">📋 Lista</button>
+  <div id="mobileSheet" aria-hidden="true">
+    <div id="mobileSheetHeader">
+      <div>Strade <span class="muted" id="mobileStreetCount">0</span></div>
+      <button id="mobileCloseBtn">✕</button>
+    </div>
+    <div id="mobileSheetBody"></div>
+  </div>
+
   <div class="sidebar">
     <div class="sidebar-header">
       Strade nell'area
@@ -293,8 +364,106 @@ document.getElementById('timeReset').addEventListener('click', async () => {
   refreshClockUI();
   await loadRoads(); // ricalcola con ora reale
 });
+// Toggle filtro vie senza divieto
+document.getElementById('onlyAllowedToggle').addEventListener('change', async () => {
+  await loadRoads();
+});
+
 
 // ── MAP ────────────────────────────────────────────────────────────────────
+
+// ── PARCHEGGIO CONSENTITO (filtro "no parking / no stopping") ───────────────
+function isExplicitlyForbiddenParking(tags){
+  const lanes = [
+    tags['parking:lane:both'], tags['parking:lane:right'], tags['parking:lane:left'],
+    tags['parking:lane']
+  ].filter(Boolean).map(v => String(v).toLowerCase());
+
+  const conds = [
+    tags['parking:condition:both'], tags['parking:condition:right'], tags['parking:condition:left'],
+    tags['parking:condition']
+  ].filter(Boolean).map(v => String(v).toLowerCase());
+
+  const all = lanes.concat(conds);
+
+  // OSM values often include: no_parking, no_stopping
+  if (all.some(v => v.includes('no_stopping'))) return true;
+  if (all.some(v => v.includes('no_parking'))) return true;
+
+  // Some mappers use "restricted" / "private" for access
+  const access = String(tags['access']||'').toLowerCase();
+  const motor = String(tags['motor_vehicle']||'').toLowerCase();
+  if (access === 'no' || access === 'private') return true;
+  if (motor === 'no' || motor === 'private') return true;
+
+  return false;
+}
+
+function normalizeStreetName(s){
+  return String(s||'')
+    .toLowerCase()
+    .replace(/\s+/g,' ')
+    .replace(/[’']/g,"'")
+    .trim();
+}
+
+// ── POI (attività commerciali) raggruppate per via ──────────────────────────
+let poiByStreet = {}; // { normalizedStreetName: [{name, kind}] }
+
+function poiKind(tags){
+  if (!tags) return 'Attività';
+  if (tags.shop) return `Negozio (${tags.shop})`;
+  if (tags.amenity) return `Servizio (${tags.amenity})`;
+  if (tags.tourism) return `Turismo (${tags.tourism})`;
+  return 'Attività';
+}
+
+async function loadPOIs(bounds){
+  // Overpass: prende POI con name + (shop/amenity/tourism) e prova a leggerne addr:street
+  // NB: non tutti i POI hanno addr:street in OSM → in quel caso non possiamo “collegarli” alla via
+  const south = bounds.getSouth(), west = bounds.getWest(), north = bounds.getNorth(), east = bounds.getEast();
+  const query = `
+[out:json][timeout:20];
+(
+  node(${south},${west},${north},${east})["name"]["addr:street"]["shop"];
+  node(${south},${west},${north},${east})["name"]["addr:street"]["amenity"];
+  node(${south},${west},${north},${east})["name"]["addr:street"]["tourism"];
+);
+out tags;`;
+
+  try{
+    const res = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=UTF-8'},
+      body: query
+    });
+    const data = await res.json();
+    const tmp = {};
+    (data.elements||[]).forEach(el=>{
+      const t = el.tags||{};
+      const street = normalizeStreetName(t['addr:street']);
+      if (!street) return;
+      const name = t.name;
+      if (!name) return;
+      (tmp[street] ||= []).push({ name, kind: poiKind(t) });
+    });
+    // dedup per via
+    Object.keys(tmp).forEach(k=>{
+      const seen = new Set();
+      tmp[k] = tmp[k].filter(p=>{
+        const key = p.name.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }).slice(0, 8);
+    });
+    poiByStreet = tmp;
+  }catch(e){
+    // se Overpass è lento/bloccato, non rompiamo la mappa
+    poiByStreet = {};
+  }
+}
+
 const map = L.map('map', { zoomControl: true }).setView([41.9028, 12.4964], 15);
 
 // Dark base tiles (no roads shown — we draw our own)
@@ -306,6 +475,21 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png'
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
   subdomains: 'abcd', maxZoom: 20, zIndex: 10, pane: 'overlayPane'
 }).addTo(map);
+
+
+// ── MOBILE SHEET TOGGLE ───────────────────────────────────────────────────
+(function initMobileSheet(){
+  const btn = document.getElementById('mobileListBtn');
+  const sheet = document.getElementById('mobileSheet');
+  const closeBtn = document.getElementById('mobileCloseBtn');
+  if (!btn || !sheet || !closeBtn) return;
+
+  btn.addEventListener('click', () => sheet.classList.add('open'));
+  closeBtn.addEventListener('click', () => sheet.classList.remove('open'));
+
+  // chiudi toccando fuori (solo su mobile)
+  map.on('click', () => sheet.classList.remove('open'));
+})();
 
 // ── STATE ──────────────────────────────────────────────────────────────────
 let destMarker = null;
@@ -326,11 +510,11 @@ const destIcon = L.divIcon({
 
 // ── COLORS ─────────────────────────────────────────────────────────────────
 function scoreColor(s) {
-  return s >= 75 ? '#3dffa0' : s >= 50 ? '#ffcc00' : '#ff4444';
+  return s >= 65 ? '#3dffa0' : s >= 40 ? '#ffcc00' : '#ff4444';
 }
 function scoreLabel(s) {
-  if (s >= 75) return 'Alta';
-  if (s >= 50) return 'Media';
+  if (s >= 65) return 'Alta';
+  if (s >= 40) return 'Media';
   return 'Bassa';
 }
 
@@ -387,8 +571,61 @@ function parseDur(str) {
   return h ? +h[1]*60 : m ? +m[1] : null;
 }
 
+
+// ── LEARNING (feedback utente, salva su localStorage) ───────────────────────
+function loadFeedback() {
+  try { return JSON.parse(localStorage.getItem('pf_feedback') || '{}'); }
+  catch { return {}; }
+}
+function saveFeedback(obj) {
+  localStorage.setItem('pf_feedback', JSON.stringify(obj || {}));
+}
+function getWayKey(wayId) { return String(wayId); }
+
+// Aggiorna conteggi success/fail per una strada e ricarica i punteggi
+window.pfFeedback = async function(wayId, ok) {
+  const fb = loadFeedback();
+  const k = getWayKey(wayId);
+  if (!fb[k]) fb[k] = { success: 0, fail: 0 };
+  if (ok) fb[k].success += 1;
+  else fb[k].fail += 1;
+  saveFeedback(fb);
+
+  const msg = ok ? '✅ Feedback salvato: qui hai trovato parcheggio' : '📝 Feedback salvato: qui NON hai trovato parcheggio';
+  document.getElementById('statusBar').textContent = msg;
+
+  // ricalcola colori/punteggi
+  await loadRoads();
+};
+
+// Calcola una "probabilità appresa" (Bayes semplice) e la fonde con lo score base
+function applyLearnedScore(baseScore, wayId, reasons) {
+  const fb = loadFeedback();
+  const k = getWayKey(wayId);
+  const rec = fb[k];
+  if (!rec) return baseScore;
+
+  const s = rec.success || 0;
+  const f = rec.fail || 0;
+  const n = s + f;
+
+  // Prior Beta(1,1) → media (s+1)/(n+2)
+  const learned = ((s + 1) / (n + 2)) * 100;
+
+  // Peso cresce con i dati (fino al 35%)
+  const w = Math.min(0.35, (n / 20) * 0.35);
+
+  const blended = Math.round((1 - w) * baseScore + w * learned);
+
+  if (reasons && n > 0) {
+    const dir = learned >= baseScore ? '📈' : '📉';
+    reasons.push(`${dir} Apprendimento utente: ${Math.round(learned)}% (dati: ${n})`);
+  }
+  return blended;
+}
+
 // ── PROBABILITY ENGINE ────────────────────────────────────────────────────
-function computeScore(tags, distFromDest) {
+function computeScore(tags, distFromDest, wayId) {
   const now = getEffectiveNow();
   const hour = now.getHours();
   const dow = now.getDay();
@@ -461,6 +698,11 @@ function computeScore(tags, distFromDest) {
     else                         { score += 12; reasons.push('📍 Zona meno affollata'); }
   }
 
+  // 8. APPRENDIMENTO DA FEEDBACK UTENTE (solo se wayId disponibile)
+  if (wayId !== undefined && wayId !== null) {
+    score = applyLearnedScore(score, wayId, reasons);
+  }
+
   score = Math.max(3, Math.min(97, Math.round(score)));
   return { score, reasons };
 }
@@ -488,6 +730,10 @@ function renderSidebar(streets, destLat, destLon) {
 
   if (!streets.length) {
     list.innerHTML = `<div class="empty-state"><div class="big">😕</div>Nessuna strada trovata<br>in quest'area.</div>`;
+    const mobileBody = document.getElementById('mobileSheetBody');
+    const mobileCount = document.getElementById('mobileStreetCount');
+    if (mobileBody) mobileBody.innerHTML = list.innerHTML;
+    if (mobileCount) mobileCount.textContent = '0';
     return;
   }
 
@@ -521,6 +767,31 @@ function renderSidebar(streets, destLat, destLon) {
       <div class="factor-tip">${reasons[0]||''}</div>
     </div>`;
   }).join('');
+
+  // Mobile sheet (replica lista)
+  const mobileBody = document.getElementById('mobileSheetBody');
+  const mobileCount = document.getElementById('mobileStreetCount');
+  if (mobileBody && mobileCount) {
+    mobileBody.innerHTML = list.innerHTML;
+    mobileCount.textContent = streets.length;
+    // stessa logica click per zoom
+    mobileBody.querySelectorAll('.street-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const wid = el.dataset.wid;
+        const s = streets.find(x => String(x.wayId) === wid);
+        if (s && s.polyline) {
+          map.fitBounds(s.polyline.getBounds(), { padding:[40,40], maxZoom:18 });
+          s.polyline.openPopup();
+          // chiudi sheet dopo click
+          const sheet = document.getElementById('mobileSheet');
+          if (sheet) sheet.classList.remove('open');
+        }
+      });
+    });
+    // mostra bottone lista su mobile
+    const btn = document.getElementById('mobileListBtn');
+    if (btn) btn.style.display = 'block';
+  }
 
   // Click → zoom to street
   list.querySelectorAll('.street-item').forEach(el => {
@@ -571,6 +842,9 @@ async function loadRoads() {
   document.getElementById('statusBar').innerHTML = `<div class="pulse"></div> Caricamento…`;
 
   try {
+    // Carica POI (attività) nell'area visibile (best effort)
+    await loadPOIs(bounds);
+
     const ways = await fetchRoads(bounds);
 
     // Deduplicate by way ID
@@ -583,10 +857,14 @@ async function loadRoads() {
       seen.add(way.id);
 
       const tags = way.tags || {};
+
+      // Se richiesto, escludi solo le vie con divieto esplicito (no parking / no stopping)
+      const onlyAllowed = document.getElementById('onlyAllowedToggle').checked;
+      if (onlyAllowed && isExplicitlyForbiddenParking(tags)) return;
       const geom = way.geometry;
       const mid = geom[Math.floor(geom.length/2)];
       const dist = (destLat !== null) ? hav(destLat, destLon, mid.lat, mid.lon) : null;
-      const prob = computeScore(tags, dist);
+      const prob = computeScore(tags, dist, way.id);
       const name = getName(tags);
       const latlngs = geom.map(n => [n.lat, n.lon]);
       streets.push({ name, tags, dist, prob, latlngs, wayId: way.id });
@@ -604,7 +882,7 @@ async function loadRoads() {
       const { score, reasons } = s.prob;
       const cond = s.tags['parking:condition:both']||s.tags['parking:condition:right']||s.tags['parking:condition:left']||'—';
       const lane = s.tags['parking:lane:both']||s.tags['parking:lane:right']||s.tags['parking:lane:left']||'—';
-      const now = new Date();
+      const now = getEffectiveNow();
       const ts = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
 
       const poly = L.polyline(s.latlngs, {
@@ -628,6 +906,27 @@ async function loadRoads() {
           📋 Condizione: <b style="color:#e8f5ee">${cond}</b>
           ${s.dist !== null ? `<br>📏 ${Math.round(s.dist)} m dalla destinazione` : ''}
         </div>
+
+        ${(() => {
+          const key = normalizeStreetName(s.name);
+          const list = poiByStreet[key];
+          if (!list || list.length === 0) return '';
+          const items = list.slice(0,3).map(p => `• ${p.name}`).join('<br>');
+          return `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.07)">
+                    <div style="font-size:0.72rem;color:#5a7a65;margin-bottom:4px">🏪 Attività su questa via (OSM)</div>
+                    <div style="font-size:0.72rem;color:#a0bfab;line-height:1.3">${items}</div>
+                  </div>`;
+        })()}
+
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button onclick="pfFeedback(${s.wayId},1)" style="flex:1;padding:7px 10px;border-radius:8px;border:1px solid rgba(61,255,160,0.35);background:rgba(61,255,160,0.12);color:#3dffa0;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">
+            👍 Trovato qui
+          </button>
+          <button onclick="pfFeedback(${s.wayId},0)" style="flex:1;padding:7px 10px;border-radius:8px;border:1px solid rgba(255,68,68,0.35);background:rgba(255,68,68,0.10);color:#ff6666;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">
+            👎 Non trovato
+          </button>
+        </div>
+
       `);
 
       roadLayer.addLayer(poly);
