@@ -968,13 +968,7 @@ document.getElementById('locBtn').addEventListener('click', () => {
     document.getElementById('statusBar').textContent = `❌ Impossibile ottenere la posizione`;
   });
 });
-
-map.on('click', async e => {
-  const { lat, lng } = e.latlng;
-  document.getElementById('searchInput').value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-  await doSearch(lat, lng, `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-});
-
+  
 // Initial load
 loadRoads();
 </script>
