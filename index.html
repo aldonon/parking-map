@@ -1089,15 +1089,16 @@ async function doSearch(lat, lon, label){
   destLayer.clearLayers();
   const m = L.marker([lat, lon], { icon: destIcon })
     .bindPopup(`<div class="popup-title">🎯 Destinazione</div>${String(label).split(',')[0]}`);
-
   destLayer.addLayer(m);
 
+  // 1) sposta la mappa
   map.setView([lat, lon], 16);
 
-  // IMPORTANT: qui vogliamo ricalcolare subito usando cache se presente.
-  loadRoads({ forceRecalc: true });
-
-  setTimeout(() => m.openPopup(), 700);
+  // 2) aspetta che il movimento finisca, POI carica strade una sola volta
+  map.once('moveend', () => {
+    loadRoads({ forceRecalc: false }); // farà fetch sulla nuova zona, senza doppio trigger
+    setTimeout(() => m.openPopup(), 500);
+  });
 }
 
 document.getElementById('searchBtn').addEventListener('click', async ()=>{
