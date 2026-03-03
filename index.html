@@ -8,7 +8,7 @@
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.webmanifest" />
-<meta name="theme-color" content="#00ff99" />
+<meta name="theme-color" content="#0a0f0d" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="ParkFinder" />
@@ -54,8 +54,6 @@
     background:var(--surface);
     flex-shrink:0;
     flex-wrap:wrap;
-
-    /* importantissimo per mobile: evita che i gesture del leaflet "prendano" l'header */
     touch-action: manipulation;
     -webkit-user-select: none;
     user-select: none;
@@ -147,7 +145,6 @@
   .main{ flex:1; display:flex; overflow:hidden; position:relative; }
   #map{ flex:1; z-index:1; touch-action: pan-x pan-y; }
 
-  /* overlay */
   #mapOverlay{
     position:absolute;
     top:10px; left:50%;
@@ -245,7 +242,6 @@
   }
   .empty-state .big{ font-size:1.8rem; margin-bottom:8px; }
 
-  /* Leaflet popup */
   .leaflet-popup-content-wrapper{
     background:#192119;
     color:#e8f5ee;
@@ -263,7 +259,6 @@
 
   @media (max-width:600px){ .sidebar{ display:none; } }
 
-  /* Mobile sheet */
   @media (max-width:600px){
     header{ padding:10px 12px; gap:8px; }
     .btn, .btn-icon{ padding:10px 14px; border-radius:10px; }
@@ -392,9 +387,30 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-/* ============================
+/* ==========================================================
+   CONFIG & GLOBALS
+========================================================== */
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.nchc.org.tw/api/interpreter'
+];
+
+let isLoading = false;
+let loadTimer = null;
+let lastBounds = null;
+
+let destLat = null, destLon = null;
+
+let lastWaysData = null;   // cache ultima risposta Overpass
+let lastFetchKey = null;   // chiave zona/zoom cache
+let overpassAbort = null;
+
+let loadSeq = 0;           // SOLO l'ultima richiesta può disegnare
+
+/* ==========================================================
    TIME OVERRIDE
-============================ */
+========================================================== */
 let timeOverride = null;
 
 function pad2(x){ return String(x).padStart(2,'0'); }
@@ -439,10 +455,7 @@ function refreshClockUI(){
 
 timeOverride = loadTimeOverrideFromStorage();
 refreshClockUI();
-
-setInterval(() => {
-  if (!timeOverride) refreshClockUI();
-}, 30000);
+setInterval(() => { if (!timeOverride) refreshClockUI(); }, 30000);
 
 document.getElementById('timePicker').addEventListener('input', () => {
   const v = document.getElementById('timePicker').value;
@@ -451,7 +464,6 @@ document.getElementById('timePicker').addEventListener('input', () => {
   timeOverride = {hour:hh, minute:mm};
   saveTimeOverrideToStorage(timeOverride);
   refreshClockUI();
-  // ricalcolo rapido: NON refetch se cache presente
   loadRoads({ forceRecalc: true });
 });
 
@@ -466,10 +478,9 @@ document.getElementById('onlyAllowedToggle').addEventListener('change', () => {
   loadRoads({ forceRecalc: true });
 });
 
-
-/* ============================
+/* ==========================================================
    HELPERS
-============================ */
+========================================================== */
 function scoreColor(s){ return s >= 65 ? '#3dffa0' : s >= 40 ? '#ffcc00' : '#ff4444'; }
 function scoreLabel(s){ return s >= 65 ? 'Alta' : s >= 40 ? 'Media' : 'Bassa'; }
 
@@ -479,33 +490,20 @@ function hav(la1, lo1, la2, lo2){
   const a=Math.sin(d1/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(d2/2)**2;
   return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
-
 function parseDur(str){
   if (!str) return null;
   str = String(str).toLowerCase();
   const h = str.match(/(\d+)\s*h/), m = str.match(/(\d+)\s*min/);
   return h ? +h[1]*60 : m ? +m[1] : null;
 }
-
 function normalizeStreetName(s){
-  return String(s||'')
-    .toLowerCase()
-    .replace(/\s+/g,' ')
-    .replace(/[’']/g,"'")
-    .trim();
+  return String(s||'').toLowerCase().replace(/\s+/g,' ').replace(/[’']/g,"'").trim();
 }
-
 function isExplicitlyForbiddenParking(tags){
-  const lanes = [
-    tags['parking:lane:both'], tags['parking:lane:right'], tags['parking:lane:left'],
-    tags['parking:lane']
-  ].filter(Boolean).map(v => String(v).toLowerCase());
-
-  const conds = [
-    tags['parking:condition:both'], tags['parking:condition:right'], tags['parking:condition:left'],
-    tags['parking:condition']
-  ].filter(Boolean).map(v => String(v).toLowerCase());
-
+  const lanes = [tags['parking:lane:both'], tags['parking:lane:right'], tags['parking:lane:left'], tags['parking:lane']]
+    .filter(Boolean).map(v => String(v).toLowerCase());
+  const conds = [tags['parking:condition:both'], tags['parking:condition:right'], tags['parking:condition:left'], tags['parking:condition']]
+    .filter(Boolean).map(v => String(v).toLowerCase());
   const all = lanes.concat(conds);
   if (all.some(v => v.includes('no_stopping'))) return true;
   if (all.some(v => v.includes('no_parking'))) return true;
@@ -514,10 +512,8 @@ function isExplicitlyForbiddenParking(tags){
   const motor  = String(tags['motor_vehicle']||'').toLowerCase();
   if (access === 'no' || access === 'private') return true;
   if (motor === 'no' || motor === 'private') return true;
-
   return false;
 }
-
 function roadWeight(tags){
   const hw = tags.highway || '';
   if (hw === 'primary' || hw === 'primary_link') return 5;
@@ -527,15 +523,17 @@ function roadWeight(tags){
   if (hw === 'service') return 2;
   return 3;
 }
-
 function getName(tags){
   return tags.name || tags['addr:street'] || tags.ref || 'Via senza nome';
 }
+function makeFetchKey(bounds, zoom){
+  const c = bounds.getCenter();
+  return `${zoom}|${c.lat.toFixed(3)}|${c.lng.toFixed(3)}`;
+}
 
-
-/* ============================
-   LEARNING (feedback)
-============================ */
+/* ==========================================================
+   FEEDBACK LEARNING
+========================================================== */
 function loadFeedback(){
   try { return JSON.parse(localStorage.getItem('pf_feedback') || '{}'); }
   catch { return {}; }
@@ -555,7 +553,6 @@ window.pfFeedback = async function(wayId, ok){
     ok ? '✅ Feedback salvato: qui hai trovato parcheggio'
        : '📝 Feedback salvato: qui NON hai trovato parcheggio';
 
-  // ricalcolo rapido senza refetch
   loadRoads({ forceRecalc: true });
 };
 
@@ -566,8 +563,8 @@ function applyLearnedScore(baseScore, wayId, reasons){
 
   const s = rec.success||0, f = rec.fail||0;
   const n = s+f;
-  const learned = ((s+1)/(n+2))*100;
-  const w = Math.min(0.35, (n/20)*0.35);
+  const learned = ((s+1)/(n+2))*100;         // media Beta(1,1)
+  const w = Math.min(0.35, (n/20)*0.35);     // peso max 35%
   const blended = Math.round((1-w)*baseScore + w*learned);
 
   if (reasons && n>0){
@@ -576,10 +573,9 @@ function applyLearnedScore(baseScore, wayId, reasons){
   return blended;
 }
 
-
-/* ============================
+/* ==========================================================
    SCORE ENGINE
-============================ */
+========================================================== */
 function computeScore(tags, distFromDest, wayId){
   const now = getEffectiveNow();
   const hour = now.getHours();
@@ -655,10 +651,9 @@ function computeScore(tags, distFromDest, wayId){
   return { score, reasons };
 }
 
-
-/* ============================
-   POI (non bloccanti)
-============================ */
+/* ==========================================================
+   POI (BACKGROUND)
+========================================================== */
 let poiByStreet = {};
 let lastPoiKey = null;
 let lastPoiAt = 0;
@@ -671,15 +666,13 @@ function poiKind(tags){
   if (tags.tourism) return `Turismo (${tags.tourism})`;
   return 'Attività';
 }
-
 function makePoiKey(bounds){
   const c = bounds.getCenter();
   return `${c.lat.toFixed(3)}|${c.lng.toFixed(3)}`;
 }
-
 async function loadPOIsInBackground(bounds){
   const now = Date.now();
-  if (now - lastPoiAt < 15000) return; // max 1 volta ogni 15s
+  if (now - lastPoiAt < 15000) return;
   lastPoiAt = now;
 
   const key = makePoiKey(bounds);
@@ -700,12 +693,13 @@ out tags;`;
     if (poiAbort) poiAbort.abort();
     poiAbort = new AbortController();
 
-    const res = await fetch('https://overpass-api.de/api/interpreter', {
+    const res = await fetch(OVERPASS_ENDPOINTS[0], {
       method:'POST',
       headers:{'Content-Type':'text/plain;charset=UTF-8'},
-      body:query,
+      body: query,
       signal: poiAbort.signal
     });
+
     const data = await res.json();
     const tmp = {};
     (data.elements||[]).forEach(el=>{
@@ -715,6 +709,7 @@ out tags;`;
       if (!street || !name) return;
       (tmp[street] ||= []).push({ name, kind: poiKind(t) });
     });
+
     Object.keys(tmp).forEach(k=>{
       const seen = new Set();
       tmp[k] = tmp[k].filter(p=>{
@@ -726,14 +721,13 @@ out tags;`;
     });
     poiByStreet = tmp;
   } catch(e){
-    // non blocchiamo nulla
+    // no-op
   }
 }
 
-
-/* ============================
+/* ==========================================================
    MAP INIT
-============================ */
+========================================================== */
 const map = L.map('map', { zoomControl:true }).setView([41.9028, 12.4964], 15);
 
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
@@ -766,25 +760,9 @@ let destLayer = L.layerGroup().addTo(map);
   map.on('click', () => sheet.classList.remove('open'));
 })();
 
-
-/* ============================
-   FAST FETCH CACHE + ABORT
-============================ */
-let isLoading = false;
-let loadTimer = null;
-let lastBounds = null;
-
-let destLat = null, destLon = null;
-
-let lastWaysData = null;   // cache dell'ultima risposta Overpass (elements)
-let lastFetchKey = null;   // chiave per capire se possiamo riusare la cache
-let overpassAbort = null;
-
-function makeFetchKey(bounds, zoom){
-  const c = bounds.getCenter();
-  return `${zoom}|${c.lat.toFixed(3)}|${c.lng.toFixed(3)}`; // ~110m
-}
-
+/* ==========================================================
+   OVERPASS FETCH (RETRY + ABORT)
+========================================================== */
 async function fetchRoads(bounds){
   const { _southWest: sw, _northEast: ne } = bounds;
   const bbox = `${sw.lat},${sw.lng},${ne.lat},${ne.lng}`;
@@ -806,20 +784,32 @@ out geom qt;`;
   if (overpassAbort) overpassAbort.abort();
   overpassAbort = new AbortController();
 
-  const r = await fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-    body: q,
-    signal: overpassAbort.signal
-  });
+  let lastErr = null;
 
-  if (!r.ok) throw new Error(`Overpass error: ${r.status}`);
-  return (await r.json()).elements || [];
+  for (const url of OVERPASS_ENDPOINTS){
+    try{
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        body: q,
+        signal: overpassAbort.signal
+      });
+
+      if (!r.ok) throw new Error(`Overpass ${r.status}`);
+      const json = await r.json();
+      return json.elements || [];
+    } catch(e){
+      if (String(e).includes('AbortError')) throw e;
+      lastErr = e;
+    }
+  }
+
+  throw lastErr || new Error('Overpass error');
 }
 
-/* ============================
-   RENDER CORE
-============================ */
+/* ==========================================================
+   SIDEBAR RENDER
+========================================================== */
 function renderSidebar(streets){
   const list = document.getElementById('sidebarList');
   document.getElementById('streetCount').textContent = streets.length;
@@ -835,7 +825,6 @@ function renderSidebar(streets){
   }
 
   const sorted = [...streets].sort((a,b)=> b.prob.score - a.prob.score || a.name.localeCompare(b.name));
-
   const html = sorted.slice(0,60).map((s,i)=>{
     const {score,reasons} = s.prob;
     const color = scoreColor(score);
@@ -888,7 +877,6 @@ function renderSidebar(streets){
     if (btn) btn.style.display = 'block';
   }
 
-  // desktop click
   list.querySelectorAll('.street-item').forEach(el=>{
     el.addEventListener('click', ()=>{
       const wid = el.dataset.wid;
@@ -901,10 +889,12 @@ function renderSidebar(streets){
   });
 }
 
+/* ==========================================================
+   RENDER FROM WAYS
+========================================================== */
 async function renderFromWays(ways, bounds){
   const onlyAllowed = document.getElementById('onlyAllowedToggle').checked;
 
-  // best effort: POI in background (non blocca)
   if (bounds) loadPOIsInBackground(bounds);
 
   const seen = new Set();
@@ -929,9 +919,10 @@ async function renderFromWays(ways, bounds){
     streets.push({ name, tags, dist, prob, latlngs, wayId: way.id });
   }
 
-  // redraw
-  roadLayer.clearLayers();
+  // Disegno: migliori sopra
   streets.sort((a,b)=> a.prob.score - b.prob.score);
+
+  roadLayer.clearLayers();
 
   streets.forEach(s=>{
     const color = scoreColor(s.prob.score);
@@ -997,15 +988,15 @@ async function renderFromWays(ways, bounds){
   renderSidebar(forSidebar);
 
   const real = new Date();
-  document.getElementById('statusBar').textContent = `${streets.length} strade · ore ${pad2(real.getHours())}:${pad2(real.getMinutes())}`;
+  document.getElementById('statusBar').textContent =
+    `${streets.length} strade · ore ${pad2(real.getHours())}:${pad2(real.getMinutes())}`;
 }
 
-
-/* ============================
-   MAIN LOAD (FAST)
-============================ */
+/* ==========================================================
+   MAIN LOAD (ANTI-CONFLICT)
+========================================================== */
 async function loadRoads(opts = {}){
-  if (isLoading && !opts.forceRecalc) return;
+  const overlay = document.getElementById('mapOverlay');
 
   const zoom = map.getZoom();
   if (zoom < 13){
@@ -1018,66 +1009,65 @@ async function loadRoads(opts = {}){
   }
 
   const bounds = map.getBounds();
-
-  // se stai solo cambiando ora/toggle/destinazione => forzaRecalc = true (niente refetch)
   const fetchKey = makeFetchKey(bounds, zoom);
 
-  // se non forceRecalc, controlla se ti sei mosso abbastanza
+  // se NON è un ricalcolo forzato, evita refetch per micro-movimenti
   if (!opts.forceRecalc && lastBounds){
     const moved = hav(bounds.getCenter().lat, bounds.getCenter().lng, lastBounds.getCenter().lat, lastBounds.getCenter().lng);
-    // soglia più alta per mobile
     if (moved < 250 && Math.abs(zoom - lastBounds._zoom) < 0.5) return;
   }
-
   lastBounds = bounds;
   lastBounds._zoom = zoom;
 
-  const overlay = document.getElementById('mapOverlay');
+  // sequenza: solo l'ultima può disegnare
+  const mySeq = ++loadSeq;
+
   overlay.classList.add('visible');
   document.getElementById('overlayText').textContent = 'Caricamento strade…';
   document.getElementById('statusBar').innerHTML = `<div class="pulse"></div> Caricamento…`;
 
   try{
-    // 1) Se ho cache per questa zona e non è richiesto un vero refetch, rendo subito
-    if (lastWaysData && lastFetchKey === fetchKey){
+    // Se posso usare cache e sto solo ricalcolando (ora/toggle/feedback), rendo al volo
+    if (lastWaysData && lastFetchKey === fetchKey && (opts.forceRecalc || opts.allowCache !== false)){
+      if (mySeq !== loadSeq) return;
       await renderFromWays(lastWaysData, bounds);
-      overlay.classList.remove('visible');
-      isLoading = false;
       return;
     }
 
-    // 2) altrimenti refetch (con abort automatico)
+    // Altrimenti fetch nuovo (NON svuotiamo le strade finché non arriva risposta)
     isLoading = true;
     const ways = await fetchRoads(bounds);
+
+    if (mySeq !== loadSeq) return;
+
     lastWaysData = ways;
     lastFetchKey = fetchKey;
 
     await renderFromWays(ways, bounds);
   } catch(e){
-    // se era un abort, non spammare errori
     if (String(e).includes('AbortError')) return;
     document.getElementById('statusBar').textContent = `❌ ${e.message || e}`;
-    console.error(e);
+    // IMPORTANTISSIMO: non cancelliamo le strade vecchie in caso di errore
   } finally {
     overlay.classList.remove('visible');
     isLoading = false;
   }
 }
 
-// Debounce più alto: meno chiamate inutili
+// Debounce più alto
 map.on('moveend zoomend', () => {
   clearTimeout(loadTimer);
-  loadTimer = setTimeout(() => loadRoads({ forceRecalc:false }), 1000);
+  loadTimer = setTimeout(() => loadRoads({ forceRecalc:false }), 900);
 });
 
-
-/* ============================
-   SEARCH / DESTINATION
-============================ */
+/* ==========================================================
+   SEARCH / DESTINATION (NO DOUBLE LOAD)
+========================================================== */
 async function geocode(q){
-  const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`, {
-    headers: { 'Accept-Language': 'it' }
-  });
+  const r = await fetch(
+    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`,
+    { headers: { 'Accept-Language': 'it' } }
+  );
   const d = await r.json();
   if (!d.length) throw new Error('Indirizzo non trovato');
   return { lat:+d[0].lat, lon:+d[0].lon, display:d[0].display_name };
@@ -1091,12 +1081,11 @@ async function doSearch(lat, lon, label){
     .bindPopup(`<div class="popup-title">🎯 Destinazione</div>${String(label).split(',')[0]}`);
   destLayer.addLayer(m);
 
-  // 1) sposta la mappa
   map.setView([lat, lon], 16);
 
-  // 2) aspetta che il movimento finisca, POI carica strade una sola volta
+  // carica SOLO dopo il movimento (evita conflitti con moveend/zoomend)
   map.once('moveend', () => {
-    loadRoads({ forceRecalc: false }); // farà fetch sulla nuova zona, senza doppio trigger
+    loadRoads({ forceRecalc:false, allowCache:false });
     setTimeout(() => m.openPopup(), 500);
   });
 }
@@ -1112,7 +1101,6 @@ document.getElementById('searchBtn').addEventListener('click', async ()=>{
     document.getElementById('statusBar').textContent = `❌ ${e.message || e}`;
   }
 });
-
 document.getElementById('searchInput').addEventListener('keydown', (e)=>{
   if (e.key === 'Enter') document.getElementById('searchBtn').click();
 });
@@ -1135,17 +1123,15 @@ map.on('click', async e=>{
   await doSearch(lat, lng, `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
 });
 
-// initial
-loadRoads();
+/* ==========================================================
+   INIT + SERVICE WORKER
+========================================================== */
+loadRoads({ forceRecalc:false, allowCache:false });
 
-
-/* ============================
-   PWA: Service Worker
-============================ */
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
     try { await navigator.serviceWorker.register("./service-worker.js"); }
-    catch (e) { /* non bloccare */ }
+    catch (e) {}
   });
 }
 </script>
