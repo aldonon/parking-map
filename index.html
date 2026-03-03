@@ -807,14 +807,15 @@ out geom qt;`;
   overpassAbort = new AbortController();
 
   const r = await fetch('https://overpass-api.de/api/interpreter', {
-    method:'POST',
-    body:'data=' + encodeURIComponent(q),
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+    body: q,
     signal: overpassAbort.signal
   });
+
   if (!r.ok) throw new Error(`Overpass error: ${r.status}`);
   return (await r.json()).elements || [];
 }
-
 
 /* ============================
    RENDER CORE
