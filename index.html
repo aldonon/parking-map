@@ -1,24 +1,20 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
 <title>ParkFinder — Mappa Completa</title>
 
 <!-- PWA -->
-<link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#00ff99">
-
-<!-- iOS "Add to Home Screen" -->
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="ParkFinder">
-<link rel="apple-touch-icon" href="icon-192.png">
-
-<!-- Icons (optional, helpful for some browsers) -->
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#00ff99" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="ParkFinder" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -35,209 +31,298 @@
     --border: #1e2e23;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
-  body {
-    font-family: 'DM Mono', monospace;
-    background: var(--bg); color: var(--text);
-    height: 100vh; overflow: hidden;
-    display: flex; flex-direction: column;
-  }
-  header {
-    padding: 10px 18px;
-    display: flex; align-items: center; gap: 10px;
-    border-bottom: 1px solid var(--border);
-    background: var(--surface);
-    z-index: 1000; flex-shrink: 0; flex-wrap: wrap;
-  }
-  .logo {
-    font-family: 'Syne', sans-serif; font-weight: 800;
-    font-size: 1.1rem; color: var(--accent); white-space: nowrap;
-  }
-  .logo span { color: var(--muted); font-weight: 400; }
-  .search-bar { flex:1; display:flex; gap:7px; min-width:180px; }
-  .search-bar input {
-    flex:1; padding:7px 12px;
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 6px; color: var(--text);
-    font-family: 'DM Mono', monospace; font-size: 0.8rem;
-    outline: none; transition: border-color 0.2s;
-  }
-  .search-bar input:focus { border-color: var(--accent); }
-  .search-bar input::placeholder { color: var(--muted); }
-  .btn {
-    padding: 7px 14px; background: var(--accent); color: #000;
-    border: none; border-radius: 6px;
-    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.8rem;
-    cursor: pointer; transition: background 0.2s, transform 0.1s; white-space: nowrap;
-  }
-  .btn:hover { background: #5fffb5; }
-  .btn:active { transform: scale(0.97); }
-  .btn:disabled { background: var(--muted); cursor: not-allowed; }
-  .btn-icon {
-    padding: 7px 10px; background: var(--surface2);
-    color: var(--accent); border: 1px solid var(--accent);
-    border-radius: 6px; font-size: 0.95rem; cursor: pointer;
-  }
-  .btn-icon:hover { background: rgba(61,255,160,0.1); }
-  .legend {
-    display: flex; align-items: center; gap: 7px;
-    font-size: 0.7rem; color: var(--muted);
-    padding: 4px 10px; background: var(--surface2);
-    border-radius: 20px; border: 1px solid var(--border); white-space: nowrap;
-  }
-  .legend-dot { width:10px; height:10px; border-radius:2px; flex-shrink:0; }
-  .time-badge {
-    font-size: 0.7rem; color: var(--muted);
-    padding: 4px 10px; background: var(--surface2);
-    border: 1px solid var(--border); border-radius: 20px; white-space: nowrap;
-  }
-  .time-badge span { color: var(--accent); font-weight: 600; }
 
-  .main { flex:1; display:flex; overflow:hidden; position: relative; }
-  #map { flex:1; z-index:1; }
+  body{
+    font-family:'DM Mono', monospace;
+    background:var(--bg);
+    color:var(--text);
+    height:100vh;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
 
-  /* Loading overlay on map */
-  #mapOverlay {
-    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-    background: rgba(17,24,18,0.92); border: 1px solid var(--border);
-    border-radius: 8px; padding: 8px 16px;
-    font-size: 0.75rem; color: var(--accent);
-    display: none; align-items: center; gap: 8px;
-    z-index: 1000; white-space: nowrap;
+  /* Header fisso: non viene influenzato dal gesture di zoom/pan della mappa */
+  header{
+    position: relative;
+    z-index: 2000;
+    padding:10px 18px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    border-bottom:1px solid var(--border);
+    background:var(--surface);
+    flex-shrink:0;
+    flex-wrap:wrap;
+
+    /* importantissimo per mobile: evita che i gesture del leaflet "prendano" l'header */
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  header input{
+    -webkit-user-select: text;
+    user-select: text;
+    touch-action: manipulation;
+  }
+
+  .logo{
+    font-family:'Syne', sans-serif;
+    font-weight:800;
+    font-size:1.1rem;
+    color:var(--accent);
+    white-space:nowrap;
+  }
+  .logo span{ color:var(--muted); font-weight:400; }
+
+  .search-bar{ flex:1; display:flex; gap:7px; min-width:180px; }
+  .search-bar input{
+    flex:1;
+    padding:7px 12px;
+    background:var(--surface2);
+    border:1px solid var(--border);
+    border-radius:6px;
+    color:var(--text);
+    font-family:'DM Mono', monospace;
+    font-size:0.8rem;
+    outline:none;
+    transition:border-color .2s;
+  }
+  .search-bar input:focus{ border-color:var(--accent); }
+  .search-bar input::placeholder{ color:var(--muted); }
+
+  .btn{
+    padding:7px 14px;
+    background:var(--accent);
+    color:#000;
+    border:none;
+    border-radius:6px;
+    font-family:'Syne', sans-serif;
+    font-weight:700;
+    font-size:.8rem;
+    cursor:pointer;
+    transition:background .2s, transform .1s;
+    white-space:nowrap;
+  }
+  .btn:hover{ background:#5fffb5; }
+  .btn:active{ transform:scale(.97); }
+  .btn:disabled{ background:var(--muted); cursor:not-allowed; }
+
+  .btn-icon{
+    padding:7px 10px;
+    background:var(--surface2);
+    color:var(--accent);
+    border:1px solid var(--accent);
+    border-radius:6px;
+    font-size:.95rem;
+    cursor:pointer;
+  }
+  .btn-icon:hover{ background:rgba(61,255,160,.1); }
+
+  .legend{
+    display:flex; align-items:center; gap:7px;
+    font-size:.7rem; color:var(--muted);
+    padding:4px 10px;
+    background:var(--surface2);
+    border-radius:20px;
+    border:1px solid var(--border);
+    white-space:nowrap;
+  }
+  .legend-dot{ width:10px; height:10px; border-radius:2px; flex-shrink:0; }
+
+  .toggle-row{ margin-top:10px; display:flex; gap:10px; align-items:center; }
+  .toggle{ display:flex; gap:10px; align-items:center; font-size:.78rem; color:#a0bfab; user-select:none; }
+  .toggle input{ width:18px;height:18px; accent-color: var(--accent); }
+
+  .time-badge{
+    font-size:.7rem; color:var(--muted);
+    padding:4px 10px;
+    background:var(--surface2);
+    border:1px solid var(--border);
+    border-radius:20px;
+    white-space:nowrap;
+  }
+  .time-badge span{ color:var(--accent); font-weight:600; }
+
+  .main{ flex:1; display:flex; overflow:hidden; position:relative; }
+  #map{ flex:1; z-index:1; touch-action: pan-x pan-y; }
+
+  /* overlay */
+  #mapOverlay{
+    position:absolute;
+    top:10px; left:50%;
+    transform:translateX(-50%);
+    background:rgba(17,24,18,.92);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:8px 16px;
+    font-size:.75rem;
+    color:var(--accent);
+    display:none;
+    align-items:center;
+    gap:8px;
+    z-index:1500;
+    white-space:nowrap;
     backdrop-filter: blur(4px);
   }
-  #mapOverlay.visible { display: flex; }
+  #mapOverlay.visible{ display:flex; }
 
-  .sidebar {
-    width: 285px; background: var(--surface);
-    border-left: 1px solid var(--border);
-    display: flex; flex-direction: column;
-    overflow: hidden; z-index: 100;
+  .sidebar{
+    width:285px;
+    background:var(--surface);
+    border-left:1px solid var(--border);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    z-index:100;
   }
-  .sidebar-header {
-    padding: 12px 14px; border-bottom: 1px solid var(--border);
-    font-family: 'Syne', sans-serif; font-weight: 700;
-    font-size: 0.78rem; color: var(--muted);
-    letter-spacing: 0.06em; text-transform: uppercase;
-    display: flex; justify-content: space-between; align-items: center;
+  .sidebar-header{
+    padding:12px 14px;
+    border-bottom:1px solid var(--border);
+    font-family:'Syne', sans-serif;
+    font-weight:700;
+    font-size:.78rem;
+    color:var(--muted);
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
   }
-  .sidebar-count { color: var(--accent); font-size: 0.75rem; }
-  .sidebar-list {
-    flex:1; overflow-y:auto;
-    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
-  }
-  .street-item {
-    padding: 10px 13px; border-bottom: 1px solid var(--border);
-    cursor: pointer; transition: background 0.15s;
-  }
-  .street-item:hover { background: var(--surface2); }
-  .street-item.top { border-left: 3px solid var(--accent); }
-  .street-row { display:flex; align-items:center; gap:8px; margin-bottom:5px; }
-  .street-swatch { width:11px; height:11px; border-radius:2px; flex-shrink:0; }
-  .street-name {
-    font-size: 0.76rem; font-weight: 500; flex:1;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .street-score { font-size: 0.76rem; font-weight: 700; }
-  .prob-bar-wrap { display:flex; align-items:center; gap:6px; }
-  .prob-bar-bg { flex:1; height:3px; background:var(--border); border-radius:2px; overflow:hidden; }
-  .prob-bar-fill { height:100%; border-radius:2px; }
-  .prob-pct { font-size:0.65rem; min-width:36px; text-align:right; color:var(--muted); }
-  .street-meta { font-size:0.65rem; color:var(--muted); margin-top:3px; }
-  .factor-tip { font-size:0.63rem; color:var(--muted); font-style:italic; margin-top:2px; }
-  .badge { padding:1px 5px; border-radius:3px; font-size:0.6rem; font-weight:600; margin-right:3px; }
-  .badge-top { background:var(--accent); color:#000; }
-  .badge-free { background:rgba(61,255,160,0.15); color:var(--accent); }
-  .badge-res { background:rgba(255,68,68,0.15); color:#ff6666; }
+  .sidebar-count{ color:var(--accent); font-size:.75rem; }
+  .sidebar-list{ flex:1; overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
 
-  .status-bar {
-    padding: 8px 13px; border-top: 1px solid var(--border);
-    font-size: 0.7rem; color: var(--muted);
-    min-height: 34px; display:flex; align-items:center; gap:7px;
+  .street-item{
+    padding:10px 13px;
+    border-bottom:1px solid var(--border);
+    cursor:pointer;
+    transition:background .15s;
   }
-  .pulse {
-    width:7px; height:7px; border-radius:50%;
-    background: var(--accent); animation: pulse 1.2s infinite; flex-shrink:0;
-  }
-  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
-  .empty-state {
-    padding:36px 18px; text-align:center;
-    color:var(--muted); font-size:0.78rem; line-height:1.8;
-  }
-  .empty-state .big { font-size:1.8rem; margin-bottom:8px; }
+  .street-item:hover{ background:var(--surface2); }
+  .street-item.top{ border-left:3px solid var(--accent); }
 
-  /* Leaflet */
-  .leaflet-popup-content-wrapper {
-    background:#192119; color:#e8f5ee;
-    border:1px solid #1e2e23; border-radius:8px;
-    box-shadow:0 8px 32px rgba(0,0,0,0.6);
-    font-family:'DM Mono',monospace; font-size:0.76rem;
-  }
-  .leaflet-popup-tip { background:#192119; }
-  .leaflet-popup-content { margin:11px 13px; line-height:1.65; }
-  .popup-title { font-family:'Syne',sans-serif; font-weight:700; font-size:0.88rem; margin-bottom:4px; }
-  .leaflet-control-zoom a { background:#192119!important; color:#3dffa0!important; border-color:#1e2e23!important; }
-  .leaflet-control-attribution { display:none; }
-  @media (max-width:600px) { .sidebar{display:none;} }
+  .street-row{ display:flex; align-items:center; gap:8px; margin-bottom:5px; }
+  .street-swatch{ width:11px; height:11px; border-radius:2px; flex-shrink:0; }
+  .street-name{ font-size:.76rem; font-weight:500; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .street-score{ font-size:.76rem; font-weight:700; }
 
-  /* Mobile usability */
-  @media (max-width:600px) {
-    header { padding: 10px 12px; gap: 8px; }
-    .btn, .btn-icon { padding: 10px 14px; border-radius: 10px; }
-    .search-bar input { padding: 10px 12px; font-size: 0.9rem; }
-    .legend { font-size: 0.68rem; }
-    .time-badge { font-size: 0.68rem; }
-    #map { touch-action: pan-x pan-y; }
-    .sidebar { display:none; } /* la lista diventa un pannello mobile */
-    #mobileListBtn {
-      position: absolute; right: 14px; bottom: 14px; z-index: 1200;
-      background: var(--surface2); border: 1px solid var(--accent);
-      color: var(--accent); border-radius: 14px;
-      padding: 10px 12px; font-family: 'Syne', sans-serif; font-weight: 800;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.55);
+  .prob-bar-wrap{ display:flex; align-items:center; gap:6px; }
+  .prob-bar-bg{ flex:1; height:3px; background:var(--border); border-radius:2px; overflow:hidden; }
+  .prob-bar-fill{ height:100%; border-radius:2px; }
+  .prob-pct{ font-size:.65rem; min-width:36px; text-align:right; color:var(--muted); }
+
+  .street-meta{ font-size:.65rem; color:var(--muted); margin-top:3px; }
+  .factor-tip{ font-size:.63rem; color:var(--muted); font-style:italic; margin-top:2px; }
+  .badge{ padding:1px 5px; border-radius:3px; font-size:.6rem; font-weight:600; margin-right:3px; }
+  .badge-top{ background:var(--accent); color:#000; }
+  .badge-free{ background:rgba(61,255,160,.15); color:var(--accent); }
+  .badge-res{ background:rgba(255,68,68,.15); color:#ff6666; }
+
+  .status-bar{
+    padding:8px 13px;
+    border-top:1px solid var(--border);
+    font-size:.7rem;
+    color:var(--muted);
+    min-height:34px;
+    display:flex;
+    align-items:center;
+    gap:7px;
+  }
+  .pulse{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--accent);
+    animation:pulse 1.2s infinite;
+    flex-shrink:0;
+  }
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+
+  .empty-state{
+    padding:36px 18px;
+    text-align:center;
+    color:var(--muted);
+    font-size:.78rem;
+    line-height:1.8;
+  }
+  .empty-state .big{ font-size:1.8rem; margin-bottom:8px; }
+
+  /* Leaflet popup */
+  .leaflet-popup-content-wrapper{
+    background:#192119;
+    color:#e8f5ee;
+    border:1px solid #1e2e23;
+    border-radius:8px;
+    box-shadow:0 8px 32px rgba(0,0,0,.6);
+    font-family:'DM Mono', monospace;
+    font-size:.76rem;
+  }
+  .leaflet-popup-tip{ background:#192119; }
+  .leaflet-popup-content{ margin:11px 13px; line-height:1.65; }
+  .popup-title{ font-family:'Syne', sans-serif; font-weight:700; font-size:.88rem; margin-bottom:4px; }
+  .leaflet-control-zoom a{ background:#192119!important; color:#3dffa0!important; border-color:#1e2e23!important; }
+  .leaflet-control-attribution{ display:none; }
+
+  @media (max-width:600px){ .sidebar{ display:none; } }
+
+  /* Mobile sheet */
+  @media (max-width:600px){
+    header{ padding:10px 12px; gap:8px; }
+    .btn, .btn-icon{ padding:10px 14px; border-radius:10px; }
+    .search-bar input{ padding:10px 12px; font-size:.9rem; }
+    .legend{ font-size:.68rem; }
+    .time-badge{ font-size:.68rem; }
+
+    #mobileListBtn{
+      position:absolute; right:14px; bottom:14px; z-index:1600;
+      background:var(--surface2);
+      border:1px solid var(--accent);
+      color:var(--accent);
+      border-radius:14px;
+      padding:10px 12px;
+      font-family:'Syne', sans-serif;
+      font-weight:800;
+      box-shadow:0 10px 30px rgba(0,0,0,.55);
     }
-    #mobileSheet {
-      position: absolute; left: 0; right: 0; bottom: 0; z-index: 1300;
-      background: rgba(17,24,18,0.98);
-      border-top: 1px solid var(--border);
-      border-radius: 18px 18px 0 0;
-      max-height: 70vh;
-      transform: translateY(100%);
-      transition: transform 0.22s ease;
-      display: flex; flex-direction: column;
+    #mobileSheet{
+      position:absolute; left:0; right:0; bottom:0; z-index:1700;
+      background:rgba(17,24,18,.98);
+      border-top:1px solid var(--border);
+      border-radius:18px 18px 0 0;
+      max-height:70vh;
+      transform:translateY(100%);
+      transition:transform .22s ease;
+      display:flex; flex-direction:column;
       backdrop-filter: blur(6px);
     }
-    #mobileSheet.open { transform: translateY(0); }
-    #mobileSheetHeader {
-      padding: 10px 14px; display:flex; align-items:center; justify-content: space-between;
-      border-bottom: 1px solid var(--border);
-      font-family:'Syne',sans-serif; font-weight: 800; color: var(--text);
+    #mobileSheet.open{ transform:translateY(0); }
+    #mobileSheetHeader{
+      padding:10px 14px;
+      display:flex; align-items:center; justify-content:space-between;
+      border-bottom:1px solid var(--border);
+      font-family:'Syne', sans-serif;
+      font-weight:800;
+      color:var(--text);
     }
-    #mobileSheetHeader .muted { color: var(--muted); font-size: 0.8rem; font-weight: 700; }
-    #mobileCloseBtn {
-      background: transparent; border: 1px solid var(--border); color: var(--text);
-      border-radius: 10px; padding: 6px 10px; font-size: 1rem;
+    #mobileSheetHeader .muted{ color:var(--muted); font-size:.8rem; font-weight:700; }
+    #mobileCloseBtn{
+      background:transparent;
+      border:1px solid var(--border);
+      color:var(--text);
+      border-radius:10px;
+      padding:6px 10px;
+      font-size:1rem;
     }
-    #mobileSheetBody { overflow:auto; }
-    /* evita che clic su lista muova la mappa sotto */
-    #mobileSheet, #mobileSheet * { touch-action: manipulation; }
-  }
-
-  .toggle-row{margin-top:10px; display:flex; gap:10px; align-items:center;}
-  .toggle{display:flex; gap:10px; align-items:center; font-size:0.78rem; color:#a0bfab; user-select:none;}
-  .toggle input{width:18px;height:18px; accent-color: var(--accent);}
-  @media (max-width:720px){
-    .toggle-row{margin-top:8px;}
-    .toggle{font-size:0.86rem;}
+    #mobileSheetBody{ overflow:auto; }
+    #mobileSheet, #mobileSheet *{ touch-action: manipulation; }
   }
 </style>
 </head>
 
 <body>
-
 <header>
   <div class="logo">Park<span>Finder</span></div>
+
   <div class="search-bar">
-    <input type="text" id="searchInput" placeholder="Destinazione…"/>
+    <input type="text" id="searchInput" placeholder="Destinazione…" autocomplete="off"/>
     <button class="btn-icon" id="locBtn" title="Posizione attuale">📍</button>
     <button class="btn" id="searchBtn">Cerca</button>
   </div>
@@ -274,6 +359,7 @@
 
 <div class="main">
   <div id="map"></div>
+
   <div id="mapOverlay">
     <div class="pulse"></div>
     <span id="overlayText">Caricamento strade…</span>
@@ -306,91 +392,109 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-// ── TIME OVERRIDE (manuale o reale) ─────────────────────────────────────────
-let timeOverride = null; // { hour: number, minute: number } oppure null
+/* ============================
+   TIME OVERRIDE
+============================ */
+let timeOverride = null;
 
-function pad2(x) { return String(x).padStart(2, '0'); }
+function pad2(x){ return String(x).padStart(2,'0'); }
 
-function setTimeBadgeText(h, m, isManual) {
-  const t = `${pad2(h)}:${pad2(m)}`;
+function setTimeBadgeText(h,m,isManual){
   const el = document.getElementById('timeDisplay');
-  el.textContent = t;
+  el.textContent = `${pad2(h)}:${pad2(m)}`;
   el.style.color = isManual ? 'var(--warn)' : 'var(--accent)';
 }
 
-function loadTimeOverrideFromStorage() {
-  const raw = localStorage.getItem('pf_timeOverride'); // es: "18:30"
+function loadTimeOverrideFromStorage(){
+  const raw = localStorage.getItem('pf_timeOverride');
   if (!raw) return null;
-  const [hh, mm] = raw.split(':').map(Number);
-  if (Number.isFinite(hh) && Number.isFinite(mm)) return { hour: hh, minute: mm };
+  const [hh,mm] = raw.split(':').map(Number);
+  if (Number.isFinite(hh) && Number.isFinite(mm)) return {hour:hh, minute:mm};
   return null;
 }
-
-function saveTimeOverrideToStorage(obj) {
+function saveTimeOverrideToStorage(obj){
   if (!obj) localStorage.removeItem('pf_timeOverride');
   else localStorage.setItem('pf_timeOverride', `${pad2(obj.hour)}:${pad2(obj.minute)}`);
 }
-
-function getEffectiveNow() {
+function getEffectiveNow(){
   const real = new Date();
   if (!timeOverride) return real;
   const d = new Date(real);
   d.setHours(timeOverride.hour, timeOverride.minute, 0, 0);
   return d;
 }
-
-function refreshClockUI() {
+function refreshClockUI(){
   const picker = document.getElementById('timePicker');
   const resetBtn = document.getElementById('timeReset');
   const n = new Date();
-
-  if (timeOverride) {
+  if (timeOverride){
     picker.value = `${pad2(timeOverride.hour)}:${pad2(timeOverride.minute)}`;
     setTimeBadgeText(timeOverride.hour, timeOverride.minute, true);
   } else {
     picker.value = '';
     setTimeBadgeText(n.getHours(), n.getMinutes(), false);
   }
-
   resetBtn.disabled = !timeOverride;
 }
 
-// Init UI
 timeOverride = loadTimeOverrideFromStorage();
 refreshClockUI();
 
-// aggiorna badge ogni 30s (solo per mostrare l'orario reale se non override)
 setInterval(() => {
   if (!timeOverride) refreshClockUI();
 }, 30000);
 
-// Eventi input
-document.getElementById('timePicker').addEventListener('input', async (e) => {
-  const v = e.target.value; // "HH:MM"
+document.getElementById('timePicker').addEventListener('input', () => {
+  const v = document.getElementById('timePicker').value;
   if (!v) return;
-  const [hh, mm] = v.split(':').map(Number);
-  timeOverride = { hour: hh, minute: mm };
+  const [hh,mm] = v.split(':').map(Number);
+  timeOverride = {hour:hh, minute:mm};
   saveTimeOverrideToStorage(timeOverride);
   refreshClockUI();
-  await loadRoads(); // ricalcola colori/punteggi
+  // ricalcolo rapido: NON refetch se cache presente
+  loadRoads({ forceRecalc: true });
 });
 
-document.getElementById('timeReset').addEventListener('click', async () => {
+document.getElementById('timeReset').addEventListener('click', () => {
   timeOverride = null;
   saveTimeOverrideToStorage(null);
   refreshClockUI();
-  await loadRoads(); // ricalcola con ora reale
+  loadRoads({ forceRecalc: true });
 });
 
-// Toggle filtro vie senza divieto
-document.getElementById('onlyAllowedToggle').addEventListener('change', async () => {
-  await loadRoads();
+document.getElementById('onlyAllowedToggle').addEventListener('change', () => {
+  loadRoads({ forceRecalc: true });
 });
 
 
-// ── MAP ────────────────────────────────────────────────────────────────────
+/* ============================
+   HELPERS
+============================ */
+function scoreColor(s){ return s >= 65 ? '#3dffa0' : s >= 40 ? '#ffcc00' : '#ff4444'; }
+function scoreLabel(s){ return s >= 65 ? 'Alta' : s >= 40 ? 'Media' : 'Bassa'; }
 
-// ── PARCHEGGIO CONSENTITO (filtro "no parking / no stopping") ───────────────
+function hav(la1, lo1, la2, lo2){
+  const R=6371000;
+  const d1=(la2-la1)*Math.PI/180, d2=(lo2-lo1)*Math.PI/180;
+  const a=Math.sin(d1/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(d2/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function parseDur(str){
+  if (!str) return null;
+  str = String(str).toLowerCase();
+  const h = str.match(/(\d+)\s*h/), m = str.match(/(\d+)\s*min/);
+  return h ? +h[1]*60 : m ? +m[1] : null;
+}
+
+function normalizeStreetName(s){
+  return String(s||'')
+    .toLowerCase()
+    .replace(/\s+/g,' ')
+    .replace(/[’']/g,"'")
+    .trim();
+}
+
 function isExplicitlyForbiddenParking(tags){
   const lanes = [
     tags['parking:lane:both'], tags['parking:lane:right'], tags['parking:lane:left'],
@@ -403,230 +507,84 @@ function isExplicitlyForbiddenParking(tags){
   ].filter(Boolean).map(v => String(v).toLowerCase());
 
   const all = lanes.concat(conds);
-
   if (all.some(v => v.includes('no_stopping'))) return true;
   if (all.some(v => v.includes('no_parking'))) return true;
 
   const access = String(tags['access']||'').toLowerCase();
-  const motor = String(tags['motor_vehicle']||'').toLowerCase();
+  const motor  = String(tags['motor_vehicle']||'').toLowerCase();
   if (access === 'no' || access === 'private') return true;
   if (motor === 'no' || motor === 'private') return true;
 
   return false;
 }
 
-function normalizeStreetName(s){
-  return String(s||'')
-    .toLowerCase()
-    .replace(/\s+/g,' ')
-    .replace(/[’']/g,"'")
-    .trim();
+function roadWeight(tags){
+  const hw = tags.highway || '';
+  if (hw === 'primary' || hw === 'primary_link') return 5;
+  if (hw === 'secondary' || hw === 'secondary_link') return 4;
+  if (hw === 'tertiary' || hw === 'tertiary_link') return 3.5;
+  if (hw === 'residential' || hw === 'living_street') return 3;
+  if (hw === 'service') return 2;
+  return 3;
 }
 
-// ── POI (attività commerciali) raggruppate per via ──────────────────────────
-let poiByStreet = {}; // { normalizedStreetName: [{name, kind}] }
-
-function poiKind(tags){
-  if (!tags) return 'Attività';
-  if (tags.shop) return `Negozio (${tags.shop})`;
-  if (tags.amenity) return `Servizio (${tags.amenity})`;
-  if (tags.tourism) return `Turismo (${tags.tourism})`;
-  return 'Attività';
+function getName(tags){
+  return tags.name || tags['addr:street'] || tags.ref || 'Via senza nome';
 }
 
-async function loadPOIs(bounds){
-  const south = bounds.getSouth(), west = bounds.getWest(), north = bounds.getNorth(), east = bounds.getEast();
-  const query = `
-[out:json][timeout:20];
-(
-  node(${south},${west},${north},${east})["name"]["addr:street"]["shop"];
-  node(${south},${west},${north},${east})["name"]["addr:street"]["amenity"];
-  node(${south},${west},${north},${east})["name"]["addr:street"]["tourism"];
-);
-out tags;`;
 
-  try{
-    const res = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      headers: {'Content-Type': 'text/plain;charset=UTF-8'},
-      body: query
-    });
-    const data = await res.json();
-    const tmp = {};
-    (data.elements||[]).forEach(el=>{
-      const t = el.tags||{};
-      const street = normalizeStreetName(t['addr:street']);
-      if (!street) return;
-      const name = t.name;
-      if (!name) return;
-      (tmp[street] ||= []).push({ name, kind: poiKind(t) });
-    });
-    Object.keys(tmp).forEach(k=>{
-      const seen = new Set();
-      tmp[k] = tmp[k].filter(p=>{
-        const key = p.name.toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      }).slice(0, 8);
-    });
-    poiByStreet = tmp;
-  }catch(e){
-    poiByStreet = {};
-  }
-}
-
-const map = L.map('map', { zoomControl: true }).setView([41.9028, 12.4964], 15);
-
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-  subdomains: 'abcd', maxZoom: 20
-}).addTo(map);
-
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
-  subdomains: 'abcd', maxZoom: 20, zIndex: 10, pane: 'overlayPane'
-}).addTo(map);
-
-// ── MOBILE SHEET TOGGLE ───────────────────────────────────────────────────
-(function initMobileSheet(){
-  const btn = document.getElementById('mobileListBtn');
-  const sheet = document.getElementById('mobileSheet');
-  const closeBtn = document.getElementById('mobileCloseBtn');
-  if (!btn || !sheet || !closeBtn) return;
-
-  btn.addEventListener('click', () => sheet.classList.add('open'));
-  closeBtn.addEventListener('click', () => sheet.classList.remove('open'));
-
-  map.on('click', () => sheet.classList.remove('open'));
-})();
-
-// ── STATE ──────────────────────────────────────────────────────────────────
-let roadLayer = L.layerGroup().addTo(map);
-let destLayer = L.layerGroup().addTo(map);
-let isLoading = false;
-let loadTimer = null;
-let lastBounds = null;
-
-// ── DEST ICON ──────────────────────────────────────────────────────────────
-const destIcon = L.divIcon({
-  html: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">
-    <path d="M16 0C7.2 0 0 7.2 0 16c0 11 16 26 16 26S32 27 32 16C32 7.2 24.8 0 16 0z" fill="#ff4f6e"/>
-    <circle cx="16" cy="16" r="7" fill="#fff"/>
-  </svg>`,
-  className:'', iconSize:[32,42], iconAnchor:[16,42]
-});
-
-// ── COLORS ─────────────────────────────────────────────────────────────────
-function scoreColor(s) {
-  return s >= 65 ? '#3dffa0' : s >= 40 ? '#ffcc00' : '#ff4444';
-}
-function scoreLabel(s) {
-  if (s >= 65) return 'Alta';
-  if (s >= 40) return 'Media';
-  return 'Bassa';
-}
-
-// ── GEOCODING ──────────────────────────────────────────────────────────────
-async function geocode(q) {
-  const r = await fetch(
-    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`,
-    { headers: { 'Accept-Language': 'it' } }
-  );
-  const d = await r.json();
-  if (!d.length) throw new Error('Indirizzo non trovato');
-  return { lat: +d[0].lat, lon: +d[0].lon, display: d[0].display_name };
-}
-
-// ── OVERPASS: fetch ALL roads in bounding box ──────────────────────────────
-async function fetchRoads(bounds) {
-  const { _southWest: sw, _northEast: ne } = bounds;
-  const bbox = `${sw.lat},${sw.lng},${ne.lat},${ne.lng}`;
-  const q = `
-[out:json][timeout:40];
-(
-  way["highway"~"^(residential|tertiary|tertiary_link|secondary|secondary_link|primary|primary_link|living_street|unclassified|service|road)$"](${bbox});
-  way["parking:lane:right"](${bbox});
-  way["parking:lane:left"](${bbox});
-  way["parking:lane:both"](${bbox});
-  way["parking:condition:right"](${bbox});
-  way["parking:condition:left"](${bbox});
-  way["parking:condition:both"](${bbox});
-  way["amenity"="parking"]["parking"~"street_side|on_street"](${bbox});
-);
-out geom qt;
-  `;
-  const r = await fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST', body: 'data=' + encodeURIComponent(q)
-  });
-  if (!r.ok) throw new Error(`Overpass error: ${r.status}`);
-  return (await r.json()).elements || [];
-}
-
-// ── HAVERSINE ──────────────────────────────────────────────────────────────
-function hav(la1, lo1, la2, lo2) {
-  const R = 6371000, d1=(la2-la1)*Math.PI/180, d2=(lo2-lo1)*Math.PI/180;
-  const a = Math.sin(d1/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(d2/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-}
-
-// ── PARSE DURATION ─────────────────────────────────────────────────────────
-function parseDur(str) {
-  if (!str) return null;
-  str = str.toLowerCase();
-  const h = str.match(/(\d+)\s*h/), m = str.match(/(\d+)\s*min/);
-  return h ? +h[1]*60 : m ? +m[1] : null;
-}
-
-// ── LEARNING (feedback utente, salva su localStorage) ───────────────────────
-function loadFeedback() {
+/* ============================
+   LEARNING (feedback)
+============================ */
+function loadFeedback(){
   try { return JSON.parse(localStorage.getItem('pf_feedback') || '{}'); }
   catch { return {}; }
 }
-function saveFeedback(obj) {
-  localStorage.setItem('pf_feedback', JSON.stringify(obj || {}));
-}
-function getWayKey(wayId) { return String(wayId); }
+function saveFeedback(obj){ localStorage.setItem('pf_feedback', JSON.stringify(obj || {})); }
+function getWayKey(wayId){ return String(wayId); }
 
-window.pfFeedback = async function(wayId, ok) {
+window.pfFeedback = async function(wayId, ok){
   const fb = loadFeedback();
   const k = getWayKey(wayId);
-  if (!fb[k]) fb[k] = { success: 0, fail: 0 };
+  if (!fb[k]) fb[k] = { success:0, fail:0 };
   if (ok) fb[k].success += 1;
   else fb[k].fail += 1;
   saveFeedback(fb);
 
-  const msg = ok ? '✅ Feedback salvato: qui hai trovato parcheggio' : '📝 Feedback salvato: qui NON hai trovato parcheggio';
-  document.getElementById('statusBar').textContent = msg;
+  document.getElementById('statusBar').textContent =
+    ok ? '✅ Feedback salvato: qui hai trovato parcheggio'
+       : '📝 Feedback salvato: qui NON hai trovato parcheggio';
 
-  await loadRoads();
+  // ricalcolo rapido senza refetch
+  loadRoads({ forceRecalc: true });
 };
 
-function applyLearnedScore(baseScore, wayId, reasons) {
+function applyLearnedScore(baseScore, wayId, reasons){
   const fb = loadFeedback();
-  const k = getWayKey(wayId);
-  const rec = fb[k];
+  const rec = fb[getWayKey(wayId)];
   if (!rec) return baseScore;
 
-  const s = rec.success || 0;
-  const f = rec.fail || 0;
-  const n = s + f;
+  const s = rec.success||0, f = rec.fail||0;
+  const n = s+f;
+  const learned = ((s+1)/(n+2))*100;
+  const w = Math.min(0.35, (n/20)*0.35);
+  const blended = Math.round((1-w)*baseScore + w*learned);
 
-  const learned = ((s + 1) / (n + 2)) * 100;
-  const w = Math.min(0.35, (n / 20) * 0.35);
-
-  const blended = Math.round((1 - w) * baseScore + w * learned);
-
-  if (reasons && n > 0) {
-    const dir = learned >= baseScore ? '📈' : '📉';
-    reasons.push(`${dir} Apprendimento utente: ${Math.round(learned)}% (dati: ${n})`);
+  if (reasons && n>0){
+    reasons.push(`${learned >= baseScore ? '📈' : '📉'} Apprendimento utente: ${Math.round(learned)}% (dati: ${n})`);
   }
   return blended;
 }
 
-// ── PROBABILITY ENGINE ────────────────────────────────────────────────────
-function computeScore(tags, distFromDest, wayId) {
+
+/* ============================
+   SCORE ENGINE
+============================ */
+function computeScore(tags, distFromDest, wayId){
   const now = getEffectiveNow();
   const hour = now.getHours();
   const dow = now.getDay();
+
   let score = 55;
   const reasons = [];
 
@@ -642,7 +600,7 @@ function computeScore(tags, distFromDest, wayId) {
   else if (peakEve)   { score -= 24; reasons.push('🕔 Ora di punta serale'); }
   else                { score +=  6; reasons.push('🕑 Orario tranquillo'); }
 
-  if (isWeekend) {
+  if (isWeekend){
     const hasCond = tags['parking:condition:right']||tags['parking:condition:left']||tags['parking:condition:both'];
     if (hasCond)  { score -= 8;  reasons.push('📅 Weekend: più trafficato'); }
     else          { score += 10; reasons.push('📅 Weekend: zona tranquilla'); }
@@ -654,11 +612,11 @@ function computeScore(tags, distFromDest, wayId) {
   if (lane === 'parallel')      { score += 3;  reasons.push('🅿 Sosta parallela'); }
   if (lane === 'diagonal')      { score += 8;  reasons.push('🅿 Diagonale: più posti'); }
   if (lane === 'perpendicular') { score += 10; reasons.push('🅿 Perpendicolare: molti posti'); }
-  if (lane === 'no_parking')    { score = 5;   reasons.length=0; reasons.push('🚫 Sosta vietata'); }
-  if (lane === 'no_stopping')   { score = 3;   reasons.length=0; reasons.push('⛔ Fermata vietata'); }
+  if (lane === 'no_parking')    { score = 5;  reasons.length=0; reasons.push('🚫 Sosta vietata'); }
+  if (lane === 'no_stopping')   { score = 3;  reasons.length=0; reasons.push('⛔ Fermata vietata'); }
 
   const hw = tags.highway || '';
-  if (!lane) {
+  if (!lane){
     if (hw === 'living_street')  { score += 14; reasons.push('🏘 Zona residenziale calma'); }
     if (hw === 'residential')    { score += 8;  reasons.push('🏘 Via residenziale'); }
     if (hw === 'unclassified')   { score += 6;  reasons.push('🛣 Via locale'); }
@@ -675,21 +633,21 @@ function computeScore(tags, distFromDest, wayId) {
   if (cond === 'residents') { score -= 20; reasons.push('🏠 Solo residenti'); }
 
   const ms = tags['parking:condition:right:maxstay']||tags['parking:condition:left:maxstay']||tags.maxstay||'';
-  if (ms) {
+  if (ms){
     const mins = parseDur(ms);
-    if (mins && mins <= 30)  { score += 12; reasons.push(`⏱ Max ${ms}: alta rotazione`); }
+    if (mins && mins <= 30) { score += 12; reasons.push(`⏱ Max ${ms}: alta rotazione`); }
     else if (mins && mins <= 120) { score += 5; reasons.push(`⏱ Max ${ms}`); }
   }
 
-  if (distFromDest !== null) {
+  if (distFromDest !== null){
     if (distFromDest < 100)      { score -= 20; reasons.push('📍 Vicinissimo: alta domanda'); }
     else if (distFromDest < 200) { score -= 12; }
-    else if (distFromDest < 350) { score -=  4; }
-    else if (distFromDest < 550) { score +=  6; reasons.push('📍 Distanza moderata'); }
+    else if (distFromDest < 350) { score -= 4; }
+    else if (distFromDest < 550) { score += 6; reasons.push('📍 Distanza moderata'); }
     else                         { score += 12; reasons.push('📍 Zona meno affollata'); }
   }
 
-  if (wayId !== undefined && wayId !== null) {
+  if (wayId !== undefined && wayId !== null){
     score = applyLearnedScore(score, wayId, reasons);
   }
 
@@ -697,73 +655,226 @@ function computeScore(tags, distFromDest, wayId) {
   return { score, reasons };
 }
 
-function roadWeight(tags) {
-  const hw = tags.highway || '';
-  if (hw === 'primary' || hw === 'primary_link')     return 5;
-  if (hw === 'secondary' || hw === 'secondary_link') return 4;
-  if (hw === 'tertiary' || hw === 'tertiary_link')   return 3.5;
-  if (hw === 'residential' || hw === 'living_street')return 3;
-  if (hw === 'service')                              return 2;
-  return 3;
+
+/* ============================
+   POI (non bloccanti)
+============================ */
+let poiByStreet = {};
+let lastPoiKey = null;
+let lastPoiAt = 0;
+let poiAbort = null;
+
+function poiKind(tags){
+  if (!tags) return 'Attività';
+  if (tags.shop) return `Negozio (${tags.shop})`;
+  if (tags.amenity) return `Servizio (${tags.amenity})`;
+  if (tags.tourism) return `Turismo (${tags.tourism})`;
+  return 'Attività';
 }
 
-function getName(tags) {
-  return tags.name || tags['addr:street'] || tags.ref || 'Via senza nome';
+function makePoiKey(bounds){
+  const c = bounds.getCenter();
+  return `${c.lat.toFixed(3)}|${c.lng.toFixed(3)}`;
 }
 
-function renderSidebar(streets, destLat, destLon) {
+async function loadPOIsInBackground(bounds){
+  const now = Date.now();
+  if (now - lastPoiAt < 15000) return; // max 1 volta ogni 15s
+  lastPoiAt = now;
+
+  const key = makePoiKey(bounds);
+  if (key === lastPoiKey) return;
+  lastPoiKey = key;
+
+  const south=bounds.getSouth(), west=bounds.getWest(), north=bounds.getNorth(), east=bounds.getEast();
+  const query = `
+[out:json][timeout:18];
+(
+  node(${south},${west},${north},${east})["name"]["addr:street"]["shop"];
+  node(${south},${west},${north},${east})["name"]["addr:street"]["amenity"];
+  node(${south},${west},${north},${east})["name"]["addr:street"]["tourism"];
+);
+out tags;`;
+
+  try{
+    if (poiAbort) poiAbort.abort();
+    poiAbort = new AbortController();
+
+    const res = await fetch('https://overpass-api.de/api/interpreter', {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=UTF-8'},
+      body:query,
+      signal: poiAbort.signal
+    });
+    const data = await res.json();
+    const tmp = {};
+    (data.elements||[]).forEach(el=>{
+      const t = el.tags||{};
+      const street = normalizeStreetName(t['addr:street']);
+      const name = t.name;
+      if (!street || !name) return;
+      (tmp[street] ||= []).push({ name, kind: poiKind(t) });
+    });
+    Object.keys(tmp).forEach(k=>{
+      const seen = new Set();
+      tmp[k] = tmp[k].filter(p=>{
+        const kk = p.name.toLowerCase();
+        if (seen.has(kk)) return false;
+        seen.add(kk);
+        return true;
+      }).slice(0, 8);
+    });
+    poiByStreet = tmp;
+  } catch(e){
+    // non blocchiamo nulla
+  }
+}
+
+
+/* ============================
+   MAP INIT
+============================ */
+const map = L.map('map', { zoomControl:true }).setView([41.9028, 12.4964], 15);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+  subdomains:'abcd', maxZoom:20
+}).addTo(map);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
+  subdomains:'abcd', maxZoom:20
+}).addTo(map);
+
+const destIcon = L.divIcon({
+  html: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">
+    <path d="M16 0C7.2 0 0 7.2 0 16c0 11 16 26 16 26S32 27 32 16C32 7.2 24.8 0 16 0z" fill="#ff4f6e"/>
+    <circle cx="16" cy="16" r="7" fill="#fff"/>
+  </svg>`,
+  className:'', iconSize:[32,42], iconAnchor:[16,42]
+});
+
+let roadLayer = L.layerGroup().addTo(map);
+let destLayer = L.layerGroup().addTo(map);
+
+(function initMobileSheet(){
+  const btn = document.getElementById('mobileListBtn');
+  const sheet = document.getElementById('mobileSheet');
+  const closeBtn = document.getElementById('mobileCloseBtn');
+  if (!btn || !sheet || !closeBtn) return;
+
+  btn.addEventListener('click', () => sheet.classList.add('open'));
+  closeBtn.addEventListener('click', () => sheet.classList.remove('open'));
+  map.on('click', () => sheet.classList.remove('open'));
+})();
+
+
+/* ============================
+   FAST FETCH CACHE + ABORT
+============================ */
+let isLoading = false;
+let loadTimer = null;
+let lastBounds = null;
+
+let destLat = null, destLon = null;
+
+let lastWaysData = null;   // cache dell'ultima risposta Overpass (elements)
+let lastFetchKey = null;   // chiave per capire se possiamo riusare la cache
+let overpassAbort = null;
+
+function makeFetchKey(bounds, zoom){
+  const c = bounds.getCenter();
+  return `${zoom}|${c.lat.toFixed(3)}|${c.lng.toFixed(3)}`; // ~110m
+}
+
+async function fetchRoads(bounds){
+  const { _southWest: sw, _northEast: ne } = bounds;
+  const bbox = `${sw.lat},${sw.lng},${ne.lat},${ne.lng}`;
+
+  const q = `
+[out:json][timeout:35];
+(
+  way["highway"~"^(residential|tertiary|tertiary_link|secondary|secondary_link|primary|primary_link|living_street|unclassified|service|road)$"](${bbox});
+  way["parking:lane:right"](${bbox});
+  way["parking:lane:left"](${bbox});
+  way["parking:lane:both"](${bbox});
+  way["parking:condition:right"](${bbox});
+  way["parking:condition:left"](${bbox});
+  way["parking:condition:both"](${bbox});
+  way["amenity"="parking"]["parking"~"street_side|on_street"](${bbox});
+);
+out geom qt;`;
+
+  if (overpassAbort) overpassAbort.abort();
+  overpassAbort = new AbortController();
+
+  const r = await fetch('https://overpass-api.de/api/interpreter', {
+    method:'POST',
+    body:'data=' + encodeURIComponent(q),
+    signal: overpassAbort.signal
+  });
+  if (!r.ok) throw new Error(`Overpass error: ${r.status}`);
+  return (await r.json()).elements || [];
+}
+
+
+/* ============================
+   RENDER CORE
+============================ */
+function renderSidebar(streets){
   const list = document.getElementById('sidebarList');
   document.getElementById('streetCount').textContent = streets.length;
 
-  if (!streets.length) {
-    list.innerHTML = `<div class="empty-state"><div class="big">😕</div>Nessuna strada trovata<br>in quest'area.</div>`;
+  if (!streets.length){
+    const empty = `<div class="empty-state"><div class="big">😕</div>Nessuna strada trovata<br>in quest'area.</div>`;
+    list.innerHTML = empty;
     const mobileBody = document.getElementById('mobileSheetBody');
     const mobileCount = document.getElementById('mobileStreetCount');
-    if (mobileBody) mobileBody.innerHTML = list.innerHTML;
+    if (mobileBody) mobileBody.innerHTML = empty;
     if (mobileCount) mobileCount.textContent = '0';
     return;
   }
 
-  const sorted = [...streets].sort((a,b) => b.prob.score - a.prob.score || a.name.localeCompare(b.name));
+  const sorted = [...streets].sort((a,b)=> b.prob.score - a.prob.score || a.name.localeCompare(b.name));
 
-  list.innerHTML = sorted.slice(0, 60).map((s, i) => {
-    const { score, reasons } = s.prob;
+  const html = sorted.slice(0,60).map((s,i)=>{
+    const {score,reasons} = s.prob;
     const color = scoreColor(score);
     const label = scoreLabel(score);
-    const isTop = i === 0;
+    const isTop = i===0;
     const cond = s.tags['parking:condition:both']||s.tags['parking:condition:right']||s.tags['parking:condition:left']||'';
-    return `<div class="street-item ${isTop ? 'top' : ''}" data-wid="${s.wayId}">
+    return `<div class="street-item ${isTop?'top':''}" data-wid="${s.wayId}">
       <div class="street-row">
         <div class="street-swatch" style="background:${color}"></div>
         <div class="street-name">${s.name}</div>
         <div class="street-score" style="color:${color}">${score}%</div>
       </div>
       <div class="prob-bar-wrap">
-        <div class="prob-bar-bg">
-          <div class="prob-bar-fill" style="width:${score}%;background:${color}"></div>
-        </div>
+        <div class="prob-bar-bg"><div class="prob-bar-fill" style="width:${score}%;background:${color}"></div></div>
         <div class="prob-pct">${label}</div>
       </div>
       <div class="street-meta">
         ${isTop ? '<span class="badge badge-top">⭐ TOP</span>' : ''}
         ${cond==='free' ? '<span class="badge badge-free">Gratis</span>' : ''}
         ${cond==='residents' ? '<span class="badge badge-res">Residenti</span>' : ''}
-        ${s.tags.highway ? `<span>${s.tags.highway.replace('_',' ')}</span>` : ''}
+        ${s.tags.highway ? `<span>${String(s.tags.highway).replace('_',' ')}</span>` : ''}
       </div>
       <div class="factor-tip">${reasons[0]||''}</div>
     </div>`;
   }).join('');
 
+  list.innerHTML = html;
+
+  // mobile mirror
   const mobileBody = document.getElementById('mobileSheetBody');
   const mobileCount = document.getElementById('mobileStreetCount');
-  if (mobileBody && mobileCount) {
-    mobileBody.innerHTML = list.innerHTML;
+  if (mobileBody && mobileCount){
+    mobileBody.innerHTML = html;
     mobileCount.textContent = streets.length;
-    mobileBody.querySelectorAll('.street-item').forEach(el => {
-      el.addEventListener('click', () => {
+
+    mobileBody.querySelectorAll('.street-item').forEach(el=>{
+      el.addEventListener('click', ()=>{
         const wid = el.dataset.wid;
         const s = streets.find(x => String(x.wayId) === wid);
-        if (s && s.polyline) {
+        if (s && s.polyline){
           map.fitBounds(s.polyline.getBounds(), { padding:[40,40], maxZoom:18 });
           s.polyline.openPopup();
           const sheet = document.getElementById('mobileSheet');
@@ -771,15 +882,17 @@ function renderSidebar(streets, destLat, destLon) {
         }
       });
     });
+
     const btn = document.getElementById('mobileListBtn');
     if (btn) btn.style.display = 'block';
   }
 
-  list.querySelectorAll('.street-item').forEach(el => {
-    el.addEventListener('click', () => {
+  // desktop click
+  list.querySelectorAll('.street-item').forEach(el=>{
+    el.addEventListener('click', ()=>{
       const wid = el.dataset.wid;
       const s = streets.find(x => String(x.wayId) === wid);
-      if (s && s.polyline) {
+      if (s && s.polyline){
         map.fitBounds(s.polyline.getBounds(), { padding:[40,40], maxZoom:18 });
         s.polyline.openPopup();
       }
@@ -787,205 +900,252 @@ function renderSidebar(streets, destLat, destLon) {
   });
 }
 
-let destLat = null, destLon = null;
+async function renderFromWays(ways, bounds){
+  const onlyAllowed = document.getElementById('onlyAllowedToggle').checked;
 
-async function loadRoads() {
-  if (isLoading) return;
+  // best effort: POI in background (non blocca)
+  if (bounds) loadPOIsInBackground(bounds);
+
+  const seen = new Set();
+  const streets = [];
+
+  for (const way of ways){
+    if (!way.geometry || way.geometry.length < 2) continue;
+    if (seen.has(way.id)) continue;
+    seen.add(way.id);
+
+    const tags = way.tags || {};
+    if (onlyAllowed && isExplicitlyForbiddenParking(tags)) continue;
+
+    const geom = way.geometry;
+    const mid  = geom[Math.floor(geom.length/2)];
+    const dist = (destLat !== null) ? hav(destLat, destLon, mid.lat, mid.lon) : null;
+
+    const prob = computeScore(tags, dist, way.id);
+    const name = getName(tags);
+    const latlngs = geom.map(n => [n.lat, n.lon]);
+
+    streets.push({ name, tags, dist, prob, latlngs, wayId: way.id });
+  }
+
+  // redraw
+  roadLayer.clearLayers();
+  streets.sort((a,b)=> a.prob.score - b.prob.score);
+
+  streets.forEach(s=>{
+    const color = scoreColor(s.prob.score);
+    const weight = roadWeight(s.tags);
+    const {score, reasons} = s.prob;
+
+    const cond = s.tags['parking:condition:both']||s.tags['parking:condition:right']||s.tags['parking:condition:left']||'—';
+    const lane = s.tags['parking:lane:both']||s.tags['parking:lane:right']||s.tags['parking:lane:left']||'—';
+
+    const now = getEffectiveNow();
+    const ts = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+
+    const poly = L.polyline(s.latlngs, { color, weight, opacity:.85, lineCap:'round', lineJoin:'round' });
+
+    poly.bindPopup(`
+      <div class="popup-title" style="color:${color}">${s.name}</div>
+      <div style="font-size:0.67rem;color:#5a7a65;margin-bottom:7px">Calcolato alle ${ts}</div>
+      <div style="background:rgba(255,255,255,0.07);border-radius:3px;height:6px;overflow:hidden;margin-bottom:7px">
+        <div style="width:${score}%;height:100%;background:${color};border-radius:3px"></div>
+      </div>
+      <div style="font-size:0.88rem;font-weight:700;color:${color};margin-bottom:7px">${score}% — ${scoreLabel(score)} disponibilità</div>
+
+      <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:6px;margin-bottom:6px">
+        ${reasons.slice(0,4).map(r=>`<div style="font-size:0.7rem;margin:2px 0;color:#a0bfab">${r}</div>`).join('')}
+      </div>
+
+      <div style="font-size:0.7rem;color:#5a7a65">
+        🛣 Tipo: <b style="color:#e8f5ee">${s.tags.highway||'parking'}</b><br>
+        🅿 Corsia: <b style="color:#e8f5ee">${lane}</b><br>
+        📋 Condizione: <b style="color:#e8f5ee">${cond}</b>
+        ${s.dist !== null ? `<br>📏 ${Math.round(s.dist)} m dalla destinazione` : ''}
+      </div>
+
+      ${(() => {
+        const key = normalizeStreetName(s.name);
+        const list = poiByStreet[key];
+        if (!list || list.length === 0) return '';
+        const items = list.slice(0,3).map(p => `• ${p.name}`).join('<br>');
+        return `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.07)">
+                  <div style="font-size:0.72rem;color:#5a7a65;margin-bottom:4px">🏪 Attività su questa via (OSM)</div>
+                  <div style="font-size:0.72rem;color:#a0bfab;line-height:1.3">${items}</div>
+                </div>`;
+      })()}
+
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button onclick="pfFeedback(${s.wayId},1)" style="flex:1;padding:7px 10px;border-radius:8px;border:1px solid rgba(61,255,160,0.35);background:rgba(61,255,160,0.12);color:#3dffa0;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">
+          👍 Trovato qui
+        </button>
+        <button onclick="pfFeedback(${s.wayId},0)" style="flex:1;padding:7px 10px;border-radius:8px;border:1px solid rgba(255,68,68,0.35);background:rgba(255,68,68,0.10);color:#ff6666;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">
+          👎 Non trovato
+        </button>
+      </div>
+    `);
+
+    roadLayer.addLayer(poly);
+    s.polyline = poly;
+  });
+
+  const forSidebar = destLat !== null
+    ? streets.filter(s => s.dist !== null && s.dist < 800).sort((a,b)=> b.prob.score - a.prob.score)
+    : [...streets].sort((a,b)=> b.prob.score - a.prob.score);
+
+  renderSidebar(forSidebar);
+
+  const real = new Date();
+  document.getElementById('statusBar').textContent = `${streets.length} strade · ore ${pad2(real.getHours())}:${pad2(real.getMinutes())}`;
+}
+
+
+/* ============================
+   MAIN LOAD (FAST)
+============================ */
+async function loadRoads(opts = {}){
+  if (isLoading && !opts.forceRecalc) return;
 
   const zoom = map.getZoom();
-  if (zoom < 13) {
+  if (zoom < 13){
     roadLayer.clearLayers();
     document.getElementById('statusBar').textContent = 'Ingrandisci la mappa per vedere le strade';
     document.getElementById('streetCount').textContent = '0';
-    document.getElementById('sidebarList').innerHTML = `<div class="empty-state"><div class="big">🔍</div>Ingrandisci la mappa<br>per vedere le strade colorate.</div>`;
+    document.getElementById('sidebarList').innerHTML =
+      `<div class="empty-state"><div class="big">🔍</div>Ingrandisci la mappa<br>per vedere le strade colorate.</div>`;
     return;
   }
 
   const bounds = map.getBounds();
 
-  if (lastBounds) {
-    const moved = hav(
-      bounds.getCenter().lat, bounds.getCenter().lng,
-      lastBounds.getCenter().lat, lastBounds.getCenter().lng
-    );
-    if (moved < 100 && Math.abs(zoom - lastBounds._zoom) < 0.5) return;
+  // se stai solo cambiando ora/toggle/destinazione => forzaRecalc = true (niente refetch)
+  const fetchKey = makeFetchKey(bounds, zoom);
+
+  // se non forceRecalc, controlla se ti sei mosso abbastanza
+  if (!opts.forceRecalc && lastBounds){
+    const moved = hav(bounds.getCenter().lat, bounds.getCenter().lng, lastBounds.getCenter().lat, lastBounds.getCenter().lng);
+    // soglia più alta per mobile
+    if (moved < 250 && Math.abs(zoom - lastBounds._zoom) < 0.5) return;
   }
+
   lastBounds = bounds;
   lastBounds._zoom = zoom;
 
-  isLoading = true;
   const overlay = document.getElementById('mapOverlay');
   overlay.classList.add('visible');
   document.getElementById('overlayText').textContent = 'Caricamento strade…';
   document.getElementById('statusBar').innerHTML = `<div class="pulse"></div> Caricamento…`;
 
-  try {
-    await loadPOIs(bounds);
+  try{
+    // 1) Se ho cache per questa zona e non è richiesto un vero refetch, rendo subito
+    if (lastWaysData && lastFetchKey === fetchKey){
+      await renderFromWays(lastWaysData, bounds);
+      overlay.classList.remove('visible');
+      isLoading = false;
+      return;
+    }
+
+    // 2) altrimenti refetch (con abort automatico)
+    isLoading = true;
     const ways = await fetchRoads(bounds);
+    lastWaysData = ways;
+    lastFetchKey = fetchKey;
 
-    const seen = new Set();
-    const streets = [];
-
-    ways.forEach(way => {
-      if (!way.geometry || way.geometry.length < 2) return;
-      if (seen.has(way.id)) return;
-      seen.add(way.id);
-
-      const tags = way.tags || {};
-
-      const onlyAllowed = document.getElementById('onlyAllowedToggle').checked;
-      if (onlyAllowed && isExplicitlyForbiddenParking(tags)) return;
-
-      const geom = way.geometry;
-      const mid = geom[Math.floor(geom.length/2)];
-      const dist = (destLat !== null) ? hav(destLat, destLon, mid.lat, mid.lon) : null;
-      const prob = computeScore(tags, dist, way.id);
-      const name = getName(tags);
-      const latlngs = geom.map(n => [n.lat, n.lon]);
-      streets.push({ name, tags, dist, prob, latlngs, wayId: way.id });
-    });
-
-    roadLayer.clearLayers();
-    streets.sort((a, b) => a.prob.score - b.prob.score);
-
-    streets.forEach(s => {
-      const color = scoreColor(s.prob.score);
-      const weight = roadWeight(s.tags);
-      const { score, reasons } = s.prob;
-      const cond = s.tags['parking:condition:both']||s.tags['parking:condition:right']||s.tags['parking:condition:left']||'—';
-      const lane = s.tags['parking:lane:both']||s.tags['parking:lane:right']||s.tags['parking:lane:left']||'—';
-      const now = getEffectiveNow();
-      const ts = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
-
-      const poly = L.polyline(s.latlngs, {
-        color, weight, opacity: 0.85,
-        lineCap:'round', lineJoin:'round'
-      });
-
-      poly.bindPopup(`
-        <div class="popup-title" style="color:${color}">${s.name}</div>
-        <div style="font-size:0.67rem;color:#5a7a65;margin-bottom:7px">Calcolato alle ${ts}</div>
-        <div style="background:rgba(255,255,255,0.07);border-radius:3px;height:6px;overflow:hidden;margin-bottom:7px">
-          <div style="width:${score}%;height:100%;background:${color};border-radius:3px"></div>
-        </div>
-        <div style="font-size:0.88rem;font-weight:700;color:${color};margin-bottom:7px">${score}% — ${scoreLabel(score)} disponibilità</div>
-        <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:6px;margin-bottom:6px">
-          ${reasons.slice(0,4).map(r=>`<div style="font-size:0.7rem;margin:2px 0;color:#a0bfab">${r}</div>`).join('')}
-        </div>
-        <div style="font-size:0.7rem;color:#5a7a65">
-          🛣 Tipo: <b style="color:#e8f5ee">${s.tags.highway||'parking'}</b><br>
-          🅿 Corsia: <b style="color:#e8f5ee">${lane}</b><br>
-          📋 Condizione: <b style="color:#e8f5ee">${cond}</b>
-          ${s.dist !== null ? `<br>📏 ${Math.round(s.dist)} m dalla destinazione` : ''}
-        </div>
-
-        ${(() => {
-          const key = normalizeStreetName(s.name);
-          const list = poiByStreet[key];
-          if (!list || list.length === 0) return '';
-          const items = list.slice(0,3).map(p => `• ${p.name}`).join('<br>');
-          return `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.07)">
-                    <div style="font-size:0.72rem;color:#5a7a65;margin-bottom:4px">🏪 Attività su questa via (OSM)</div>
-                    <div style="font-size:0.72rem;color:#a0bfab;line-height:1.3">${items}</div>
-                  </div>`;
-        })()}
-
-        <div style="display:flex;gap:8px;margin-top:10px">
-          <button onclick="pfFeedback(${s.wayId},1)" style="flex:1;padding:7px 10px;border-radius:8px;border:1px solid rgba(61,255,160,0.35);background:rgba(61,255,160,0.12);color:#3dffa0;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">
-            👍 Trovato qui
-          </button>
-          <button onclick="pfFeedback(${s.wayId},0)" style="flex:1;padding:7px 10px;border-radius:8px;border:1px solid rgba(255,68,68,0.35);background:rgba(255,68,68,0.10);color:#ff6666;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">
-            👎 Non trovato
-          </button>
-        </div>
-      `);
-
-      roadLayer.addLayer(poly);
-      s.polyline = poly;
-    });
-
-    const forSidebar = destLat !== null
-      ? [...streets].filter(s => s.dist !== null && s.dist < 800).sort((a,b) => b.prob.score - a.prob.score)
-      : [...streets].sort((a,b) => b.prob.score - a.prob.score);
-
-    renderSidebar(forSidebar, destLat, destLon);
-
-    const n = new Date();
-    const ts2 = String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
-    document.getElementById('statusBar').textContent = `${streets.length} strade · ore ${ts2}`;
-
-  } catch(e) {
-    document.getElementById('statusBar').textContent = `❌ ${e.message}`;
+    await renderFromWays(ways, bounds);
+  } catch(e){
+    // se era un abort, non spammare errori
+    if (String(e).includes('AbortError')) return;
+    document.getElementById('statusBar').textContent = `❌ ${e.message || e}`;
     console.error(e);
+  } finally {
+    overlay.classList.remove('visible');
+    isLoading = false;
   }
-
-  overlay.classList.remove('visible');
-  isLoading = false;
 }
 
+// Debounce più alto: meno chiamate inutili
 map.on('moveend zoomend', () => {
   clearTimeout(loadTimer);
-  loadTimer = setTimeout(loadRoads, 600);
+  loadTimer = setTimeout(() => loadRoads({ forceRecalc:false }), 1000);
 });
 
-async function doSearch(lat, lon, label) {
+
+/* ============================
+   SEARCH / DESTINATION
+============================ */
+async function geocode(q){
+  const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`, {
+    headers: { 'Accept-Language': 'it' }
+  });
+  const d = await r.json();
+  if (!d.length) throw new Error('Indirizzo non trovato');
+  return { lat:+d[0].lat, lon:+d[0].lon, display:d[0].display_name };
+}
+
+async function doSearch(lat, lon, label){
   destLat = lat; destLon = lon;
 
   destLayer.clearLayers();
   const m = L.marker([lat, lon], { icon: destIcon })
-    .bindPopup(`<div class="popup-title">🎯 Destinazione</div>${label.split(',')[0]}`);
+    .bindPopup(`<div class="popup-title">🎯 Destinazione</div>${String(label).split(',')[0]}`);
+
   destLayer.addLayer(m);
 
   map.setView([lat, lon], 16);
-  await loadRoads();
-  setTimeout(() => m.openPopup(), 800);
+
+  // IMPORTANT: qui vogliamo ricalcolare subito usando cache se presente.
+  loadRoads({ forceRecalc: true });
+
+  setTimeout(() => m.openPopup(), 700);
 }
 
-document.getElementById('searchBtn').addEventListener('click', async () => {
+document.getElementById('searchBtn').addEventListener('click', async ()=>{
   const q = document.getElementById('searchInput').value.trim();
   if (!q) return;
   document.getElementById('statusBar').innerHTML = `<div class="pulse"></div> Geocoding…`;
-  try {
-    const { lat, lon, display } = await geocode(q);
+  try{
+    const {lat, lon, display} = await geocode(q);
     await doSearch(lat, lon, display);
-  } catch(e) {
-    document.getElementById('statusBar').textContent = `❌ ${e.message}`;
+  } catch(e){
+    document.getElementById('statusBar').textContent = `❌ ${e.message || e}`;
   }
 });
 
-document.getElementById('searchInput').addEventListener('keydown', e => {
+document.getElementById('searchInput').addEventListener('keydown', (e)=>{
   if (e.key === 'Enter') document.getElementById('searchBtn').click();
 });
 
-document.getElementById('locBtn').addEventListener('click', () => {
+document.getElementById('locBtn').addEventListener('click', ()=>{
   if (!navigator.geolocation) return alert('Geolocalizzazione non supportata.');
   document.getElementById('statusBar').innerHTML = `<div class="pulse"></div> Rilevamento…`;
-  navigator.geolocation.getCurrentPosition(async pos => {
+  navigator.geolocation.getCurrentPosition(async pos=>{
     const { latitude: lat, longitude: lon } = pos.coords;
     document.getElementById('searchInput').value = 'Posizione attuale';
     await doSearch(lat, lon, 'La mia posizione');
-  }, () => {
+  }, ()=>{
     document.getElementById('statusBar').textContent = `❌ Impossibile ottenere la posizione`;
   });
 });
-  
-// Initial load
+
+map.on('click', async e=>{
+  const { lat, lng } = e.latlng;
+  document.getElementById('searchInput').value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  await doSearch(lat, lng, `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+});
+
+// initial
 loadRoads();
-</script>
 
-<!-- PWA: register Service Worker -->
-<script>
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", async () => {
-      try {
-        await navigator.serviceWorker.register("./service-worker.js");
-      } catch (e) {
-        // se fallisce non blocchiamo il sito
-        console.warn("Service Worker non registrato:", e);
-      }
-    });
-  }
-</script>
 
+/* ============================
+   PWA: Service Worker
+============================ */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", async () => {
+    try { await navigator.serviceWorker.register("./service-worker.js"); }
+    catch (e) { /* non bloccare */ }
+  });
+}
+</script>
 </body>
 </html>
